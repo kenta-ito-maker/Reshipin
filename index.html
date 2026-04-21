@@ -201,6 +201,29 @@ const S = {
   expiryChipDays:{fontSize:11,color:"#e05c5c",fontWeight:700},
 };
 
+const RecipeCard = ({ title, badge, time, content }) => {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div style={{background:"#fff",borderRadius:16,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",marginBottom:12,overflow:"hidden"}}>
+      <div style={{padding:"16px 18px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}} onClick={() => setOpen(o => !o)}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:16,fontWeight:700,color:"#333",marginBottom:4}}>{title}</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {badge && <span style={{fontSize:11,background:"#faf0e6",color:"#e08c3a",borderRadius:20,padding:"2px 10px"}}>{badge}</span>}
+            {time && <span style={{fontSize:11,background:"#f5f5f5",color:"#888",borderRadius:20,padding:"2px 10px"}}>⏱ {time}</span>}
+          </div>
+        </div>
+        <div style={{fontSize:20,color:"#e08c3a",marginLeft:12}}>{open ? "▲" : "▼"}</div>
+      </div>
+      {open && (
+        <div style={{padding:"0 18px 18px",borderTop:"1px solid #f0e8da"}}>
+          <div style={{fontSize:13,color:"#333",lineHeight:2,whiteSpace:"pre-wrap",marginTop:14}}>{content.replace(/【[①②③].+?\n/,"").trim()}</div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 function App() {
   const load = (key, fb) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fb; } catch { return fb; } };
   const [inventory, setInvRaw] = useState(() => load("rsp_inv", []));
@@ -258,13 +281,17 @@ function App() {
     setScreen("home");
   };
 
-  const analyze = async () => {
+  const analyze = async (mode) => {
     setResultLoading(true);
     try {
-      const content = shopB64
+      const isFridgeOnly = mode === "fridge";
+      const sysPrompt = isFridgeOnly
+        ? PROMPT_KONDATE(inventory, "※在庫にある食材だけで作れる献立を提案してください。買い物不要のものだけ。", people, familyNote, extras)
+        : PROMPT_KONDATE(inventory, shopText || "特売・値引き情報なし", people, familyNote, extras);
+      const content = !isFridgeOnly && shopB64
         ? [{type:"image",source:{type:"base64",media_type:"image/jpeg",data:shopB64}},{type:"text",text:`チラシ写真。補足：${shopText||"なし"}`}]
-        : [{type:"text",text:shopText||"在庫から提案してください。"}];
-      const text = await callClaude(PROMPT_KONDATE(inventory,shopText,people,familyNote,extras), [{role:"user",content}]);
+        : [{type:"text",text:isFridgeOnly?"在庫にある食材だけで献立を3つ提案してください。":"在庫と特売情報から献立を提案してください。"}];
+      const text = await callClaude(sysPrompt, [{role:"user",content}]);
       setResult(text);
       setScreen("result");
     } catch(err) { setResult("エラー："+err.message); setScreen("result"); }
@@ -418,9 +445,14 @@ function App() {
               </div>
             </div>
             <textarea style={S.warmTextarea} placeholder={"その他のご希望（任意）\n例：20分以内、子どもが食べやすいもの"} value={extras} onChange={e => setExtras(e.target.value)} rows={2}/>
-            <button style={{...S.mainBtn,...(inventory.length===0&&!shopImage&&!shopText?S.mainBtnDisabled:{})}} onClick={analyze} disabled={inventory.length===0&&!shopImage&&!shopText} className="main-btn">
-              {resultLoading?"考え中...🤔":"今夜の献立を提案してもらう ✨"}
-            </button>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
+              <button style={{...S.mainBtn,background:"#5aaa6e",...(inventory.length===0?S.mainBtnDisabled:{})}} onClick={() => analyze("fridge")} disabled={inventory.length===0} className="main-btn">
+                🏠 今あるもので
+              </button>
+              <button style={{...S.mainBtn,...(inventory.length===0&&!shopImage&&!shopText?S.mainBtnDisabled:{})}} onClick={() => analyze("shop")} disabled={inventory.length===0&&!shopImage&&!shopText} className="main-btn">
+                🛒 買い物してから
+              </button>
+            </div>
             {resultLoading && <div style={S.loadingRow}><div style={S.spinnerOrange} className="spin"/><span style={{color:"#e08c3a",fontSize:13}}>AIが献立を考えています...</span></div>}
           </div>
         )}
@@ -431,7 +463,41 @@ function App() {
               <div style={S.resultTitleBig}>🍽️ 今夜の献立</div>
               <div style={S.resultMeta}>{people}人分 · {new Date().toLocaleDateString("ja-JP",{month:"long",day:"numeric",weekday:"short"})}</div>
             </div>
-            <div style={S.resultCard}><div style={S.resultText}>{result}</div></div>
+
+            {(() => {
+              // 結果を3つのレシピに分割
+              const blocks = result.split(/(?=【[①②③])/);
+              const warning = blocks[0]?.includes("⚠️") ? blocks[0].trim() : null;
+              const recipes = blocks.filter(b => b.match(/【[①②③]/));
+              const shopping = result.match(/🛒 今日の買い物リスト：([\s\S]+?)$/)?.[1]?.trim();
+
+              return (
+                <>
+                  {warning && (
+                    <div style={{background:"#fff5f5",border:"1.5px solid #ffb3b3",borderRadius:12,padding:"12px 16px",marginBottom:12,fontSize:13,color:"#e05c5c",lineHeight:1.8}}>
+                      {warning}
+                    </div>
+                  )}
+                  {recipes.map((recipe, idx) => {
+                    const titleMatch = recipe.match(/【([①②③].+?)】(.+)?/);
+                    const title = titleMatch ? titleMatch[1] : `レシピ${idx+1}`;
+                    const badge = recipe.includes("🏠") ? "🏠在庫だけ" : recipe.match(/🛒(.+?)を買えば/)?.[0] || "";
+                    const timeMatch = recipe.match(/⏱ 調理時間：(.+)/);
+                    const time = timeMatch ? timeMatch[1] : "";
+                    return (
+                      <RecipeCard key={idx} title={title} badge={badge} time={time} content={recipe}/>
+                    );
+                  })}
+                  {shopping && shopping !== "不要" && (
+                    <div style={{background:"#f0faf2",border:"1.5px solid #5aaa6e",borderRadius:16,padding:"16px 18px",marginBottom:12}}>
+                      <div style={{fontSize:13,fontWeight:700,color:"#5aaa6e",marginBottom:8}}>🛒 今日の買い物リスト</div>
+                      <div style={{fontSize:13,color:"#333",lineHeight:1.9,whiteSpace:"pre-wrap"}}>{shopping}</div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+
             <button style={S.mainBtn} onClick={() => { setResult(null); setShopImage(null); setShopB64(null); setShopText(""); setExtras(""); setScreen("home"); }} className="main-btn">もう一度考えてもらう 🔄</button>
           </div>
         )}

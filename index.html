@@ -66,6 +66,77 @@ const updateItemDb = async (id, fields) => {
   try { await sbFetch(`/api/inventory?id=${id}`, {method:"PATCH", body: JSON.stringify(fields)}); } catch {}
 };
 
+// ─── ポイント ─────────────────────────────────────────────────────────────────
+
+const loadPoints = async () => {
+  try {
+    const uid = getUserId();
+    const data = await sbFetch(`/api/points?user_id=${uid}`);
+    if (data && typeof data.balance === "number") return data.balance;
+    return 0;
+  } catch { return 0; }
+};
+
+const addPoints = async (amount) => {
+  try {
+    const uid = getUserId();
+    const data = await sbFetch("/api/points", {
+      method: "POST",
+      body: JSON.stringify({user_id: uid, amount}),
+    });
+    if (data && typeof data.balance === "number") return data.balance;
+    return null;
+  } catch { return null; }
+};
+
+// ─── 引き継ぎコード ───────────────────────────────────────────────────────────
+
+const generateTransferCode = () => {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 紛らわしい文字(I,O,0,1)を除外
+  const block = () => Array.from({length:4}, () => chars[Math.floor(Math.random()*chars.length)]).join("");
+  return `RCP-${block()}-${block()}`;
+};
+
+const issueTransferCode = async () => {
+  const uid = getUserId();
+  for (let i = 0; i < 5; i++) { // 万一衝突した場合のリトライ
+    const code = generateTransferCode();
+    try {
+      const data = await sbFetch("/api/transfer", {
+        method: "POST",
+        body: JSON.stringify({code, user_id: uid}),
+      });
+      if (data && data.code) return data.code;
+    } catch {}
+  }
+  return null;
+};
+
+const redeemTransferCode = async (code) => {
+  try {
+    const normalized = code.trim().toUpperCase();
+    const data = await sbFetch(`/api/transfer?code=${encodeURIComponent(normalized)}`);
+    if (data && data.user_id) return data.user_id;
+    return null;
+  } catch { return null; }
+};
+
+// ─── ランク ───────────────────────────────────────────────────────────────────
+
+const RANKS = [
+  { name: "ブロンズ",       icon: "🥉", min: 0,    next: 100 },
+  { name: "シルバー",       icon: "🥈", min: 100,  next: 500 },
+  { name: "ゴールド",       icon: "🥇", min: 500,  next: 1000 },
+  { name: "ダイヤモンド",   icon: "💎", min: 1000, next: 3000 },
+  { name: "マスターシェフ", icon: "👑", min: 3000, next: null },
+];
+const getRank = (pts) => {
+  for (let i = RANKS.length - 1; i >= 0; i--) {
+    if (pts >= RANKS[i].min) return RANKS[i];
+  }
+  return RANKS[0];
+};
+
 
 const PROMPT_FRIDGE_SCAN = `あなたは冷蔵庫の写真から食材を全て読み取るAIです。各食材の賞味期限とカテゴリーを推定してください。返答はJSONのみ。フォーマット：[{"name":"食材名","expiry":"YYYY-MM-DD or null","category":"冷蔵|冷凍|常温"},...] 目安：肉・魚3日、葉野菜3日、根菜1週間、豆腐3日、卵2週間。カテゴリーは「保管場所」を指す：生鮮品や冷蔵の調味料（マヨネーズ等）は「冷蔵」、冷凍食品は「冷凍」、米・乾麺・缶詰・常温保存の調味料は「常温」。長期保存できるものはexpiry=null可。`;
 const PROMPT_RECEIPT = `あなたはスーパーのレシートから購入食材を読み取るAIです。賞味期限とカテゴリー（保管場所）を品目から推定してください。返答はJSONのみ。フォーマット：[{"name":"食材名","expiry":"YYYY-MM-DD or null","category":"冷蔵|冷凍|常温"},...] 目安：肉・魚3日、葉野菜3日、根菜1週間、豆腐3日、卵2週間。カテゴリー：生鮮品・冷蔵の調味料は「冷蔵」、冷凍食品は「冷凍」、米・乾麺・缶詰・常温保存品は「常温」。読み取れない行は無視。`;
@@ -330,6 +401,14 @@ function App() {
   const [people, setPplRaw] = useState(() => load("rsp_ppl", 2));
   const [familyNote, setFamRaw] = useState(() => load("rsp_fam", ""));
   const [screen, setScreen] = useState("loading");
+  const [points, setPoints] = useState(0);
+  const [pointToast, setPointToast] = useState(null); // {amount, reason}
+  const [transferModal, setTransferModal] = useState(null); // "issue" | "redeem" | null
+  const [issuedCode, setIssuedCode] = useState(null);
+  const [issuingCode, setIssuingCode] = useState(false);
+  const [redeemInput, setRedeemInput] = useState("");
+  const [redeemError, setRedeemError] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
 
   useEffect(() => {
     loadInventory().then(data => {
@@ -337,7 +416,40 @@ function App() {
       setInvLoading(false);
       setScreen(data.length > 0 ? "home" : "fridge");
     });
+    loadPoints().then(setPoints);
   }, []);
+
+  const awardPoints = async (amount, reason) => {
+    const newBalance = await addPoints(amount);
+    if (newBalance !== null) {
+      const prevRank = getRank(points);
+      const newRank = getRank(newBalance);
+      setPoints(newBalance);
+      setPointToast({amount, reason, rankUp: prevRank.name !== newRank.name ? newRank : null});
+      setTimeout(() => setPointToast(null), 3500);
+    }
+  };
+
+  const handleIssueCode = async () => {
+    setIssuingCode(true);
+    const code = await issueTransferCode();
+    setIssuingCode(false);
+    if (code) setIssuedCode(code);
+    else setIssuedCode("ERROR");
+  };
+
+  const handleRedeemCode = async () => {
+    const code = redeemInput.trim().toUpperCase();
+    if (!code) { setRedeemError("コードを入力してください"); return; }
+    setRedeeming(true);
+    setRedeemError("");
+    const newUid = await redeemTransferCode(code);
+    setRedeeming(false);
+    if (!newUid) { setRedeemError("コードが見つかりません。もう一度確認してください。"); return; }
+    // 新しいuidをlocalStorageに書き込んでリロード
+    localStorage.setItem("rsp_uid", newUid);
+    location.reload();
+  };
 
   const setInventory = async (v) => {
     const n = typeof v==="function"?v(inventory):v;
@@ -412,6 +524,7 @@ function App() {
     const freshInv = await loadInventory();
     setInvRaw(freshInv);
     setConsumeModal(null);
+    awardPoints(10, "料理を作った");
   };
 
   const handleFridgeScan = async (e) => {
@@ -475,7 +588,9 @@ function App() {
   const confirmUpdate = async () => {
     const valid = updatePreview.filter(i => i.name?.trim());
     await addToInventory(valid);
+    const wasReceipt = updateMode === "receipt";
     setUpdatePreview(null); setUpdateImage(null); setUpdateMode(null);
+    if (wasReceipt) awardPoints(10, "レシートを登録した");
   };
 
   const removeItem = id => removeFromInventory(id);
@@ -843,6 +958,54 @@ function App() {
         {screen==="settings" && (
           <div className="fade-in">
             <div style={S.sectionTitle}>⚙️ 設定</div>
+            {(() => {
+              const rank = getRank(points);
+              const nextPts = rank.next;
+              const progress = nextPts ? Math.min(100, Math.round(((points - rank.min) / (nextPts - rank.min)) * 100)) : 100;
+              return (
+                <div style={{background:"linear-gradient(135deg,#fff6e8 0%,#fff0f0 100%)",border:"1.5px solid #f0d8b8",borderRadius:16,padding:"18px 20px",marginBottom:14,boxShadow:"0 2px 10px rgba(224,140,58,0.08)"}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"#888",marginBottom:10,letterSpacing:"0.1em"}}>🏆 マイランク</div>
+                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                    <div style={{fontSize:40}}>{rank.icon}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:18,fontWeight:700,color:"#333"}}>{rank.name}</div>
+                      <div style={{fontSize:12,color:"#888"}}>現在 <span style={{fontWeight:700,color:"#e08c3a",fontSize:15}}>{points}</span> pt</div>
+                    </div>
+                  </div>
+                  {nextPts !== null ? (
+                    <>
+                      <div style={{height:8,background:"#fff",borderRadius:4,overflow:"hidden",marginBottom:6}}>
+                        <div style={{height:"100%",width:`${progress}%`,background:"linear-gradient(90deg,#e08c3a,#f5a05a)",transition:"width 0.4s"}}/>
+                      </div>
+                      <div style={{fontSize:11,color:"#888",textAlign:"right"}}>次のランクまであと <span style={{color:"#e08c3a",fontWeight:700}}>{nextPts - points}pt</span></div>
+                    </>
+                  ) : (
+                    <div style={{fontSize:12,color:"#b8860b",textAlign:"center",fontWeight:700,padding:"4px 0"}}>✨ 最高ランク達成！いつもありがとう ✨</div>
+                  )}
+                  <div style={{fontSize:11,color:"#aaa",marginTop:14,lineHeight:1.6,paddingTop:10,borderTop:"1px dashed #f0d8b8"}}>
+                    ・レシート登録で +10pt<br/>
+                    ・料理を作って在庫更新で +10pt<br/>
+                    <span style={{color:"#e08c3a",fontWeight:600}}>💝 ポイントの使い道は近日公開！お楽しみに</span>
+                  </div>
+                </div>
+              );
+            })()}
+            <div style={{background:"#fff",border:"1.5px solid #e8d8c0",borderRadius:16,padding:"16px 18px",marginBottom:14}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#888",marginBottom:4,letterSpacing:"0.1em"}}>📦 データの引き継ぎ</div>
+              <div style={{fontSize:11,color:"#aaa",marginBottom:12,lineHeight:1.5}}>機種変更するときは、引き継ぎコードで在庫・ポイントを移せます</div>
+              <div style={{display:"flex",gap:8}}>
+                <button
+                  onClick={() => { setIssuedCode(null); setTransferModal("issue"); }}
+                  style={{flex:1,background:"#faf5ec",border:"1.5px solid #e8d8c0",borderRadius:10,padding:"10px 8px",fontSize:12,fontWeight:700,color:"#7a5a3a",cursor:"pointer",fontFamily:"inherit"}}>
+                  🔑 コードを発行
+                </button>
+                <button
+                  onClick={() => { setRedeemInput(""); setRedeemError(""); setTransferModal("redeem"); }}
+                  style={{flex:1,background:"#faf5ec",border:"1.5px solid #e8d8c0",borderRadius:10,padding:"10px 8px",fontSize:12,fontWeight:700,color:"#7a5a3a",cursor:"pointer",fontFamily:"inherit"}}>
+                  📥 コードを入力
+                </button>
+              </div>
+            </div>
             <div style={S.settingCard}>
               <div style={S.settingLabel}>👨‍👩‍👧 デフォルトの人数</div>
               <div style={S.peopleRow}>
@@ -926,6 +1089,88 @@ function App() {
                 <button style={S.skipLink} onClick={() => setConsumeModal(null)}>キャンセル</button>
               </>
             )}
+          </div>
+        </div>
+      )}
+      {pointToast && (
+        <div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",zIndex:300,background:"#fff",border:"1.5px solid #f0d8b8",borderRadius:16,padding:"12px 20px",boxShadow:"0 4px 20px rgba(224,140,58,0.25)",animation:"fadeIn 0.3s ease",display:"flex",flexDirection:"column",alignItems:"center",gap:4,maxWidth:"calc(100% - 40px)"}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#e08c3a"}}>+{pointToast.amount}pt 獲得！</div>
+          <div style={{fontSize:11,color:"#888"}}>{pointToast.reason}</div>
+          {pointToast.rankUp && (
+            <div style={{fontSize:12,fontWeight:700,color:"#b8860b",marginTop:4,background:"#fffbea",padding:"4px 10px",borderRadius:20}}>
+              🎉 {pointToast.rankUp.icon} {pointToast.rankUp.name} にランクアップ！
+            </div>
+          )}
+        </div>
+      )}
+      {transferModal === "issue" && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:250,padding:20}} onClick={() => setTransferModal(null)}>
+          <div style={{width:"100%",maxWidth:400,background:"#fff",borderRadius:20,padding:"24px 22px"}} onClick={e => e.stopPropagation()}>
+            <div style={{fontSize:17,fontWeight:700,color:"#333",marginBottom:4}}>🔑 引き継ぎコード発行</div>
+            <div style={{fontSize:12,color:"#888",marginBottom:16,lineHeight:1.6}}>新しい端末でこのコードを入力すると、今のデータを引き継げます。</div>
+            {!issuedCode && (
+              <button
+                onClick={handleIssueCode}
+                disabled={issuingCode}
+                style={{...S.mainBtn,background:issuingCode?"#ddd":"#e08c3a",color:"#fff",width:"100%"}}>
+                {issuingCode ? "発行中..." : "コードを発行する"}
+              </button>
+            )}
+            {issuedCode && issuedCode !== "ERROR" && (
+              <>
+                <div style={{background:"#faf5ec",border:"2px dashed #e08c3a",borderRadius:12,padding:"18px 12px",textAlign:"center",marginBottom:14}}>
+                  <div style={{fontSize:22,fontWeight:700,color:"#333",letterSpacing:"0.05em",fontFamily:"monospace"}}>{issuedCode}</div>
+                </div>
+                <button
+                  onClick={() => { navigator.clipboard?.writeText(issuedCode); }}
+                  style={{width:"100%",background:"#faf5ec",border:"1.5px solid #e8d8c0",borderRadius:10,padding:"10px",fontSize:13,fontWeight:700,color:"#7a5a3a",cursor:"pointer",fontFamily:"inherit",marginBottom:10}}>
+                  📋 コピー
+                </button>
+                <div style={{fontSize:11,color:"#c0392b",lineHeight:1.6,background:"#fff5f5",padding:"10px 12px",borderRadius:8}}>
+                  ⚠️ このコードは大切に保管してください。メモ・スクショ推奨。紛失すると復旧できません。
+                </div>
+              </>
+            )}
+            {issuedCode === "ERROR" && (
+              <div style={{color:"#c0392b",fontSize:13,textAlign:"center",padding:"12px 0"}}>発行に失敗しました。もう一度お試しください。</div>
+            )}
+            <button
+              onClick={() => setTransferModal(null)}
+              style={{width:"100%",background:"none",border:"none",color:"#888",fontSize:13,padding:"12px 0 0",cursor:"pointer",fontFamily:"inherit"}}>
+              閉じる
+            </button>
+          </div>
+        </div>
+      )}
+      {transferModal === "redeem" && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:250,padding:20}} onClick={() => !redeeming && setTransferModal(null)}>
+          <div style={{width:"100%",maxWidth:400,background:"#fff",borderRadius:20,padding:"24px 22px"}} onClick={e => e.stopPropagation()}>
+            <div style={{fontSize:17,fontWeight:700,color:"#333",marginBottom:4}}>📥 引き継ぎコード入力</div>
+            <div style={{fontSize:12,color:"#888",marginBottom:16,lineHeight:1.6}}>前の端末で発行したコードを入力してください。</div>
+            <input
+              type="text"
+              value={redeemInput}
+              onChange={e => setRedeemInput(e.target.value)}
+              placeholder="RCP-XXXX-XXXX"
+              style={{width:"100%",boxSizing:"border-box",padding:"12px 14px",border:"1.5px solid #e8d8c0",borderRadius:10,fontSize:16,fontFamily:"monospace",letterSpacing:"0.05em",textAlign:"center",marginBottom:10,textTransform:"uppercase"}}
+              disabled={redeeming}
+            />
+            {redeemError && <div style={{color:"#c0392b",fontSize:12,marginBottom:10,textAlign:"center"}}>{redeemError}</div>}
+            <div style={{fontSize:11,color:"#c0392b",lineHeight:1.6,background:"#fff5f5",padding:"10px 12px",borderRadius:8,marginBottom:14}}>
+              ⚠️ この端末の現在のデータ（在庫・ポイント）は消えて、引き継ぎ先のデータに置き換わります。
+            </div>
+            <button
+              onClick={handleRedeemCode}
+              disabled={redeeming}
+              style={{...S.mainBtn,background:redeeming?"#ddd":"#e08c3a",color:"#fff",width:"100%",marginBottom:8}}>
+              {redeeming ? "引き継ぎ中..." : "引き継ぐ"}
+            </button>
+            <button
+              onClick={() => setTransferModal(null)}
+              disabled={redeeming}
+              style={{width:"100%",background:"none",border:"none",color:"#888",fontSize:13,padding:"8px 0 0",cursor:"pointer",fontFamily:"inherit"}}>
+              キャンセル
+            </button>
           </div>
         </div>
       )}

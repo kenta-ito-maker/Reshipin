@@ -8,17 +8,28 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&family=Kaisei+Decol:wght@400;700&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-body { background: #faf8f4; font-family: 'M PLUS Rounded 1c', sans-serif; }
-.fade-in { animation: fadeIn 0.3s ease; }
+body { background: #fdf9f3; font-family: 'Zen Maru Gothic', sans-serif; color: #5a4a3a; }
+.fade-in { animation: fadeIn 0.4s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .spin { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.upload-box:hover { border-color: #e08c3a !important; background: #fffcf5 !important; }
-.main-btn:hover:not(:disabled) { background: #d07a2a !important; transform: translateY(-1px); }
-.mode-card:hover { border-color: #e08c3a !important; }
+.bounce-in { animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+@keyframes bounceIn { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
+.pop { animation: pop 0.3s ease; }
+@keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+.upload-box:hover { border-color: #d67850 !important; background: #fff7ed !important; }
+.main-btn:hover:not(:disabled) { background: #c56640 !important; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(214, 120, 80, 0.25); }
+.main-btn:active:not(:disabled) { transform: translateY(0); }
+.mode-card:hover { border-color: #d67850 !important; transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,0.08); }
+.soft-shadow { box-shadow: 0 2px 14px rgba(160, 120, 80, 0.08); }
+/* 手書き感のあるボーダー */
+.notebook-card { background: #fffcf7; border: 1.5px solid #f0e0c8; border-radius: 24px; position: relative; }
+/* 紙のようなテクスチャ */
+.paper-bg { background: #fdf9f3; background-image: radial-gradient(circle at 25% 25%, rgba(214,120,80,0.03) 0%, transparent 50%), radial-gradient(circle at 75% 75%, rgba(120,170,110,0.03) 0%, transparent 50%); }
 </style>
 </head>
 <body>
@@ -274,7 +285,7 @@ const toBase64 = (file) => new Promise((res, rej) => {
 
 const today = () => new Date().toISOString().split("T")[0];
 const daysUntil = (d) => { if (!d) return null; return Math.ceil((new Date(d) - new Date()) / 86400000); };
-const expiryColor = (d) => { const n = daysUntil(d); if (n===null) return "#bbb"; if (n<=1) return "#e05c5c"; if (n<=3) return "#e08c3a"; return "#5aaa6e"; };
+const expiryColor = (d) => { const n = daysUntil(d); if (n===null) return "#c0ac98"; if (n<=1) return "#d6524e"; if (n<=3) return "#d67850"; return "#78aa6e"; };
 const expiryLabel = (d) => { const n = daysUntil(d); if (n===null) return ""; if (n<=0) return "⚠️ 期限切れ"; if (n<=3) return `⚠️ あと${n}日`; return `期限：${d}`; };
 
 const EXPIRY_OPTIONS = [
@@ -335,102 +346,103 @@ const CategoryPicker = ({ value, onChange }) => {
 };
 
 const S = {
-  root:{minHeight:"100vh",background:"#faf8f4",display:"flex",flexDirection:"column",alignItems:"center",fontFamily:"'M PLUS Rounded 1c',sans-serif"},
+  root:{minHeight:"100vh",background:"#fdf9f3",backgroundImage:"radial-gradient(circle at 10% 20%, rgba(214,120,80,0.04) 0%, transparent 40%), radial-gradient(circle at 90% 80%, rgba(120,170,110,0.04) 0%, transparent 40%)",display:"flex",flexDirection:"column",alignItems:"center",fontFamily:"'Zen Maru Gothic',sans-serif",color:"#5a4a3a"},
   onboardWrap:{width:"100%",maxWidth:480,padding:"40px 20px 80px",display:"flex",flexDirection:"column"},
   onboardTop:{textAlign:"center",marginBottom:32},
   logoWrap:{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12},
   logoEmoji:{fontSize:36},
-  logoText:{fontSize:32,fontWeight:700,color:"#e08c3a",letterSpacing:"0.05em"},
-  catchcopy:{fontSize:16,color:"#555",lineHeight:1.8},
-  stepCard:{background:"#fff",borderRadius:20,padding:"24px 20px",boxShadow:"0 2px 16px rgba(0,0,0,0.06)",marginBottom:16},
-  stepNum:{color:"#e08c3a",fontSize:11,fontWeight:700,letterSpacing:"0.2em",marginBottom:6},
-  stepTitle:{fontSize:17,fontWeight:700,color:"#333",marginBottom:8},
-  stepDesc:{fontSize:13,color:"#888",lineHeight:1.8,marginBottom:16},
-  uploadBox:{border:"2px dashed #f5d0a0",borderRadius:16,minHeight:150,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",overflow:"hidden",transition:"border-color 0.2s,background 0.2s",background:"#fffdf8"},
-  uploadBoxFilled:{border:"2px solid #e08c3a",background:"#fff"},
+  logoText:{fontSize:32,fontWeight:700,color:"#d67850",letterSpacing:"0.08em",fontFamily:"'Kaisei Decol',serif"},
+  catchcopy:{fontSize:15,color:"#8a7563",lineHeight:1.9},
+  stepCard:{background:"#fffcf7",borderRadius:24,padding:"24px 22px",boxShadow:"0 2px 14px rgba(160,120,80,0.08)",border:"1.5px solid #f0e0c8",marginBottom:16},
+  stepNum:{color:"#d67850",fontSize:11,fontWeight:700,letterSpacing:"0.2em",marginBottom:6},
+  stepTitle:{fontSize:17,fontWeight:700,color:"#5a4a3a",marginBottom:8},
+  stepDesc:{fontSize:13,color:"#8a7563",lineHeight:1.8,marginBottom:16},
+  uploadBox:{border:"2px dashed #e8c8a8",borderRadius:20,minHeight:150,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",overflow:"hidden",transition:"border-color 0.2s,background 0.2s",background:"#fffdf8"},
+  uploadBoxFilled:{border:"2px solid #d67850",background:"#fff"},
   uploadInner:{display:"flex",flexDirection:"column",alignItems:"center",padding:24},
   uploadIcon:{fontSize:36,marginBottom:10},
-  uploadText:{color:"#e08c3a",fontSize:14,fontWeight:600},
+  uploadText:{color:"#d67850",fontSize:14,fontWeight:600},
   uploadPreview:{width:"100%",height:160,objectFit:"cover"},
-  skipLink:{background:"none",border:"none",color:"#bbb",fontSize:12,cursor:"pointer",textAlign:"center",padding:"12px 0",textDecoration:"underline",fontFamily:"inherit"},
+  skipLink:{background:"none",border:"none",color:"#b89f87",fontSize:12,cursor:"pointer",textAlign:"center",padding:"12px 0",textDecoration:"underline",fontFamily:"inherit"},
   previewList:{display:"flex",flexDirection:"column",gap:8,maxHeight:280,overflowY:"auto"},
-  previewRow:{display:"flex",flexDirection:"column",gap:6,background:"#faf8f4",borderRadius:10,padding:10},
-  addRowBtn:{background:"none",border:"2px dashed #f5d0a0",borderRadius:10,color:"#e08c3a",fontSize:13,fontWeight:600,padding:"10px 0",cursor:"pointer",marginTop:4,fontFamily:"inherit",width:"100%"},
-  warmInput:{background:"#fff",border:"1.5px solid #f0e0c8",borderRadius:10,color:"#333",fontSize:14,padding:"10px 12px",fontFamily:"inherit",outline:"none",width:"100%"},
-  warmTextarea:{width:"100%",background:"#fff",border:"1.5px solid #f0e0c8",borderRadius:12,color:"#555",fontSize:13,padding:"12px 14px",resize:"none",fontFamily:"inherit",lineHeight:1.7,outline:"none",marginBottom:12},
-  mainBtn:{width:"100%",background:"#e08c3a",color:"#fff",border:"none",borderRadius:14,padding:"15px 0",fontSize:15,fontWeight:700,fontFamily:"inherit",letterSpacing:"0.05em",cursor:"pointer",transition:"background 0.2s,transform 0.1s"},
-  mainBtnDisabled:{background:"#ddd",color:"#aaa",cursor:"not-allowed"},
-  appHeader:{width:"100%",maxWidth:480,padding:"20px 20px 0",display:"flex",alignItems:"center",justifyContent:"center"},
-  logoSmall:{fontSize:18,fontWeight:700,color:"#e08c3a"},
-  appContent:{width:"100%",maxWidth:480,padding:"16px 20px 100px",flex:1},
-  tabBar:{position:"fixed",bottom:0,left:0,right:0,background:"#fff",borderTop:"1px solid #f0e8da",display:"flex",justifyContent:"center",zIndex:100},
-  tab:{flex:1,maxWidth:160,background:"none",border:"none",color:"#bbb",fontSize:11,padding:"10px 4px 14px",cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:2,transition:"color 0.2s"},
-  tabActive:{color:"#e08c3a"},
+  previewRow:{display:"flex",flexDirection:"column",gap:6,background:"#fdf9f3",borderRadius:14,padding:12},
+  addRowBtn:{background:"none",border:"2px dashed #e8c8a8",borderRadius:14,color:"#d67850",fontSize:13,fontWeight:700,padding:"12px 0",cursor:"pointer",marginTop:4,fontFamily:"inherit",width:"100%"},
+  warmInput:{background:"#fff",border:"1.5px solid #e8d8c0",borderRadius:12,color:"#5a4a3a",fontSize:14,padding:"11px 14px",fontFamily:"inherit",outline:"none",width:"100%"},
+  warmTextarea:{width:"100%",background:"#fff",border:"1.5px solid #e8d8c0",borderRadius:16,color:"#5a4a3a",fontSize:13,padding:"14px 16px",resize:"none",fontFamily:"inherit",lineHeight:1.8,outline:"none",marginBottom:12},
+  mainBtn:{width:"100%",background:"#d67850",color:"#fff",border:"none",borderRadius:18,padding:"16px 0",fontSize:15,fontWeight:700,fontFamily:"inherit",letterSpacing:"0.05em",cursor:"pointer",transition:"all 0.2s",boxShadow:"0 3px 10px rgba(214,120,80,0.2)"},
+  mainBtnDisabled:{background:"#e8d8c8",color:"#b89f87",cursor:"not-allowed",boxShadow:"none"},
+  appHeader:{width:"100%",maxWidth:480,padding:"20px 20px 4px",display:"flex",alignItems:"center",justifyContent:"center"},
+  logoSmall:{fontSize:20,fontWeight:700,color:"#d67850",fontFamily:"'Kaisei Decol',serif",letterSpacing:"0.08em"},
+  appContent:{width:"100%",maxWidth:480,padding:"16px 20px 110px",flex:1},
+  tabBar:{position:"fixed",bottom:0,left:0,right:0,background:"#fffcf7",borderTop:"1.5px solid #f0e0c8",display:"flex",justifyContent:"center",zIndex:100,boxShadow:"0 -2px 12px rgba(160,120,80,0.05)"},
+  tab:{flex:1,maxWidth:160,background:"none",border:"none",color:"#b89f87",fontSize:11,padding:"12px 4px 16px",cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:2,transition:"color 0.2s",fontWeight:600},
+  tabActive:{color:"#d67850"},
   tabIcon:{fontSize:22},
-  greeting:{fontSize:16,color:"#555",marginBottom:16,lineHeight:1.6},
-  peopleCard:{background:"#fff",borderRadius:16,padding:"16px 20px",boxShadow:"0 2px 12px rgba(0,0,0,0.05)",marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between"},
-  peopleLabel:{color:"#555",fontSize:14,fontWeight:600},
+  greeting:{fontSize:17,color:"#5a4a3a",marginBottom:8,lineHeight:1.6,fontWeight:700},
+  greetingSub:{fontSize:12,color:"#8a7563",marginBottom:16,lineHeight:1.6},
+  peopleCard:{background:"#fffcf7",borderRadius:24,padding:"18px 22px",boxShadow:"0 2px 12px rgba(160,120,80,0.06)",border:"1.5px solid #f0e0c8",marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between"},
+  peopleLabel:{color:"#5a4a3a",fontSize:14,fontWeight:700},
   peopleRow:{display:"flex",alignItems:"center",gap:16},
-  peopleBtn:{background:"#faf0e6",border:"none",borderRadius:50,color:"#e08c3a",fontSize:20,width:38,height:38,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700},
-  peopleNum:{fontSize:24,fontWeight:700,color:"#333",minWidth:50,textAlign:"center"},
-  peopleUnit:{fontSize:13,color:"#888",marginLeft:2},
-  sectionTitle:{fontSize:14,fontWeight:700,color:"#555",marginBottom:10,marginTop:4},
-  inventoryCard:{background:"#fff",borderRadius:16,padding:"14px 16px",boxShadow:"0 2px 12px rgba(0,0,0,0.05)",marginBottom:16,cursor:"pointer",minHeight:60},
-  inventoryEmpty:{color:"#bbb",fontSize:13,lineHeight:1.8},
+  peopleBtn:{background:"#fdecd8",border:"none",borderRadius:50,color:"#d67850",fontSize:20,width:40,height:40,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,transition:"background 0.15s"},
+  peopleNum:{fontSize:26,fontWeight:700,color:"#5a4a3a",minWidth:56,textAlign:"center"},
+  peopleUnit:{fontSize:13,color:"#8a7563",marginLeft:2},
+  sectionTitle:{fontSize:14,fontWeight:700,color:"#5a4a3a",marginBottom:10,marginTop:8,letterSpacing:"0.03em"},
+  inventoryCard:{background:"#fffcf7",borderRadius:20,padding:"16px 18px",boxShadow:"0 2px 12px rgba(160,120,80,0.06)",border:"1.5px solid #f0e0c8",marginBottom:16,cursor:"pointer",minHeight:60},
+  inventoryEmpty:{color:"#b89f87",fontSize:13,lineHeight:1.8,textAlign:"center",padding:"8px 0"},
   inventoryChips:{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6},
-  chip:{background:"#faf0e6",border:"1.5px solid",borderRadius:20,padding:"3px 12px",fontSize:12,color:"#555"},
-  chipMore:{color:"#bbb",fontSize:12,padding:"4px 8px"},
-  inventoryEditHint:{color:"#ccc",fontSize:11,textAlign:"right"},
-  hintText:{color:"#bbb",fontSize:12,textAlign:"center",marginTop:8},
+  chip:{background:"#fdecd8",border:"1.5px solid",borderRadius:20,padding:"4px 14px",fontSize:12,color:"#5a4a3a",fontWeight:600},
+  chipMore:{color:"#b89f87",fontSize:12,padding:"4px 8px",fontWeight:600},
+  inventoryEditHint:{color:"#b89f87",fontSize:11,textAlign:"right",marginTop:4},
+  hintText:{color:"#b89f87",fontSize:12,textAlign:"center",marginTop:8},
   loadingRow:{display:"flex",alignItems:"center",gap:10,padding:"12px 0"},
-  spinnerOrange:{width:20,height:20,border:"2.5px solid #f5d0a0",borderTop:"2.5px solid #e08c3a",borderRadius:"50%",flexShrink:0},
+  spinnerOrange:{width:20,height:20,border:"2.5px solid #f5d8b8",borderTop:"2.5px solid #d67850",borderRadius:"50%",flexShrink:0},
   resultHeaderWrap:{marginBottom:16},
-  resultTitleBig:{fontSize:22,fontWeight:700,color:"#333",marginBottom:4},
-  resultMeta:{color:"#aaa",fontSize:13},
-  resultCard:{background:"#fff",borderRadius:20,padding:"20px 18px",boxShadow:"0 2px 16px rgba(0,0,0,0.06)",marginBottom:16},
-  resultText:{color:"#333",fontSize:14,lineHeight:2.1,whiteSpace:"pre-wrap"},
-  modeCard:{background:"#fff",border:"1.5px solid #f0e8da",borderRadius:16,padding:"20px 12px",cursor:"pointer",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",boxShadow:"0 2px 8px rgba(0,0,0,0.04)",transition:"border-color 0.2s"},
-  modeCardTitle:{fontSize:13,fontWeight:700,color:"#333",marginBottom:4},
-  modeCardSub:{fontSize:11,color:"#aaa"},
+  resultTitleBig:{fontSize:24,fontWeight:700,color:"#5a4a3a",marginBottom:4,fontFamily:"'Kaisei Decol',serif"},
+  resultMeta:{color:"#8a7563",fontSize:13},
+  resultCard:{background:"#fffcf7",borderRadius:24,padding:"22px 20px",boxShadow:"0 2px 16px rgba(160,120,80,0.08)",border:"1.5px solid #f0e0c8",marginBottom:16},
+  resultText:{color:"#5a4a3a",fontSize:14,lineHeight:2.1,whiteSpace:"pre-wrap"},
+  modeCard:{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:20,padding:"22px 14px",cursor:"pointer",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",boxShadow:"0 2px 10px rgba(160,120,80,0.06)",transition:"all 0.2s"},
+  modeCardTitle:{fontSize:13,fontWeight:700,color:"#5a4a3a",marginBottom:4},
+  modeCardSub:{fontSize:11,color:"#8a7563"},
   backRow:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12},
-  backBtn:{background:"none",border:"none",color:"#e08c3a",fontSize:13,cursor:"pointer",fontFamily:"inherit"},
-  inventoryRow:{background:"#fff",border:"1px solid #f0e8da",borderRadius:12,padding:"12px 14px",display:"flex",alignItems:"center",gap:12},
-  itemName:{fontSize:14,color:"#333",fontWeight:600},
-  iconBtn:{background:"#faf8f4",border:"1px solid #f0e8da",borderRadius:8,color:"#aaa",fontSize:14,width:32,height:32,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},
-  emptyState:{color:"#ccc",fontSize:13,textAlign:"center",padding:"32px 0",lineHeight:2},
-  settingCard:{background:"#fff",border:"1px solid #f0e8da",borderRadius:16,padding:18,marginBottom:14,boxShadow:"0 1px 8px rgba(0,0,0,0.04)"},
-  settingLabel:{fontSize:14,fontWeight:700,color:"#555",marginBottom:12},
+  backBtn:{background:"none",border:"none",color:"#d67850",fontSize:13,cursor:"pointer",fontFamily:"inherit",fontWeight:600},
+  inventoryRow:{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:16,padding:"14px 16px",display:"flex",alignItems:"center",gap:12},
+  itemName:{fontSize:14,color:"#5a4a3a",fontWeight:700},
+  iconBtn:{background:"#fdf9f3",border:"1.5px solid #f0e0c8",borderRadius:10,color:"#b89f87",fontSize:14,width:34,height:34,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},
+  emptyState:{color:"#b89f87",fontSize:13,textAlign:"center",padding:"32px 0",lineHeight:2},
+  settingCard:{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:20,padding:20,marginBottom:14,boxShadow:"0 2px 10px rgba(160,120,80,0.05)"},
+  settingLabel:{fontSize:14,fontWeight:700,color:"#5a4a3a",marginBottom:12},
   thumbRow:{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10},
-  thumbImg:{width:72,height:72,objectFit:"cover",borderRadius:10,border:"2px solid #f0e0c8"},
-  expiryWarningBox:{background:"#fff5f5",border:"1.5px solid #ffb3b3",borderRadius:16,padding:"14px 16px",marginBottom:14},
-  expiryWarningTitle:{fontSize:13,fontWeight:700,color:"#e05c5c"},
-  expiryChip:{background:"#fff",border:"1.5px solid #e05c5c",borderRadius:20,padding:"4px 12px",display:"flex",alignItems:"center",gap:6},
-  expiryChipName:{fontSize:13,color:"#333",fontWeight:600},
-  expiryChipDays:{fontSize:11,color:"#e05c5c",fontWeight:700},
+  thumbImg:{width:72,height:72,objectFit:"cover",borderRadius:12,border:"2px solid #f0e0c8"},
+  expiryWarningBox:{background:"#fff5ed",border:"1.5px solid #f0b090",borderRadius:20,padding:"16px 18px",marginBottom:14},
+  expiryWarningTitle:{fontSize:13,fontWeight:700,color:"#c56640"},
+  expiryChip:{background:"#fff",border:"1.5px solid #d67850",borderRadius:20,padding:"4px 12px",display:"flex",alignItems:"center",gap:6},
+  expiryChipName:{fontSize:13,color:"#5a4a3a",fontWeight:700},
+  expiryChipDays:{fontSize:11,color:"#c56640",fontWeight:700},
 };
 
 const RecipeCard = ({ title, badge, time, calories, content, onCooked }) => {
   const [open, setOpen] = React.useState(false);
   return (
-    <div style={{background:"#fff",borderRadius:16,boxShadow:"0 2px 12px rgba(0,0,0,0.06)",marginBottom:12,overflow:"hidden"}}>
-      <div style={{padding:"16px 18px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}} onClick={() => setOpen(o => !o)}>
+    <div style={{background:"#fffcf7",borderRadius:24,boxShadow:"0 2px 14px rgba(160,120,80,0.08)",border:"1.5px solid #f0e0c8",marginBottom:14,overflow:"hidden"}}>
+      <div style={{padding:"18px 20px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}} onClick={() => setOpen(o => !o)}>
         <div style={{flex:1}}>
-          <div style={{fontSize:16,fontWeight:700,color:"#333",marginBottom:4}}>{title}</div>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            {badge && <span style={{fontSize:11,background:"#faf0e6",color:"#e08c3a",borderRadius:20,padding:"2px 10px"}}>{badge}</span>}
-            {time && <span style={{fontSize:11,background:"#f5f5f5",color:"#888",borderRadius:20,padding:"2px 10px"}}>⏱ {time}</span>}
-            {calories && <span style={{fontSize:11,background:"#fff5e8",color:"#c08030",borderRadius:20,padding:"2px 10px"}}>🔥 {calories}</span>}
+          <div style={{fontSize:16,fontWeight:700,color:"#5a4a3a",marginBottom:6,fontFamily:"'Kaisei Decol',serif"}}>{title}</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {badge && <span style={{fontSize:11,background:"#fdecd8",color:"#d67850",borderRadius:20,padding:"3px 12px",fontWeight:600}}>{badge}</span>}
+            {time && <span style={{fontSize:11,background:"#fdf4e8",color:"#8a7563",borderRadius:20,padding:"3px 12px",fontWeight:600}}>⏱ {time}</span>}
+            {calories && <span style={{fontSize:11,background:"#fff5ea",color:"#c56640",borderRadius:20,padding:"3px 12px",fontWeight:600}}>🔥 {calories}</span>}
           </div>
         </div>
-        <div style={{fontSize:20,color:"#e08c3a",marginLeft:12}}>{open ? "▲" : "▼"}</div>
+        <div style={{fontSize:20,color:"#d67850",marginLeft:12}}>{open ? "▲" : "▼"}</div>
       </div>
       {open && (
-        <div style={{padding:"0 18px 18px",borderTop:"1px solid #f0e8da"}}>
-          <div style={{fontSize:13,color:"#333",lineHeight:2,whiteSpace:"pre-wrap",marginTop:14}}>{content.replace(/【[①②③].+?\n/,"").trim()}</div>
+        <div style={{padding:"0 20px 20px",borderTop:"1.5px dashed #f0e0c8"}}>
+          <div style={{fontSize:13,color:"#5a4a3a",lineHeight:2.1,whiteSpace:"pre-wrap",marginTop:16}}>{content.replace(/【[①②③].+?\n/,"").trim()}</div>
           <button
             onClick={(e) => { e.stopPropagation(); onCooked && onCooked(); }}
-            style={{marginTop:14,background:"#5aaa6e",color:"#fff",border:"none",borderRadius:12,padding:"10px 0",fontSize:13,fontWeight:700,fontFamily:"inherit",cursor:"pointer",width:"100%"}}>
-            ✓ これを作った（在庫を減らす）
+            style={{marginTop:16,background:"#78aa6e",color:"#fff",border:"none",borderRadius:14,padding:"12px 0",fontSize:13,fontWeight:700,fontFamily:"inherit",cursor:"pointer",width:"100%",boxShadow:"0 3px 10px rgba(120,170,110,0.25)"}}>
+            🍳 これ作った！（在庫を減らす）
           </button>
         </div>
       )}
@@ -570,7 +582,7 @@ function App() {
     const freshInv = await loadInventory();
     setInvRaw(freshInv);
     setConsumeModal(null);
-    awardPoints(10, "料理を作った");
+    awardPoints(10, "賢く使い切ったね！");
   };
 
   const handleFridgeScan = async (e) => {
@@ -595,7 +607,7 @@ function App() {
     await addToInventory(valid);
     setFridgeImages([]);
     setScreen("home");
-    if (valid.length > 0) awardPoints(1, "食材を追加した");
+    if (valid.length > 0) awardPoints(1, "食材の登録ありがとう〜");
   };
 
   const analyze = async (mode) => {
@@ -642,8 +654,8 @@ function App() {
     const mode = updateMode;
     setUpdatePreview(null); setUpdateImage(null); setUpdateMode(null);
     if (valid.length === 0) return;
-    if (mode === "receipt") awardPoints(10, "レシートを登録した");
-    else awardPoints(1, "食材を追加した");
+    if (mode === "receipt") awardPoints(10, "お買い物お疲れ様〜✨");
+    else awardPoints(1, "食材の登録ありがとう〜");
   };
 
   const removeItem = id => removeFromInventory(id);
@@ -679,9 +691,19 @@ function App() {
 
         {screen==="home" && (
           <div className="fade-in">
-            <div style={S.greeting}>こんにちは！今日は何人分ですか？</div>
+            {(() => {
+              const h = new Date().getHours();
+              const greet = h < 10 ? "おはよう〜☀️" : h < 15 ? "こんにちは〜🍳" : h < 18 ? "お疲れ様〜🌇" : "今夜もおつかれさま〜🌙";
+              const sub = h < 10 ? "今日も素敵な一日にしましょう" : h < 15 ? "お昼ごはん、なに食べよっか" : h < 18 ? "今日の晩ごはん、決めちゃお" : "ほっとひと息、献立考えよっか";
+              return (
+                <>
+                  <div style={S.greeting}>{greet}</div>
+                  <div style={S.greetingSub}>{sub}</div>
+                </>
+              );
+            })()}
             <div style={S.peopleCard}>
-              <div style={S.peopleLabel}>👨‍👩‍👧 今日の人数</div>
+              <div style={S.peopleLabel}>🍽️ 今日の人数</div>
               <div style={S.peopleRow}>
                 <button style={S.peopleBtn} onClick={() => setPeople(p => Math.max(1,p-1))}>－</button>
                 <div style={S.peopleNum}>{people}<span style={S.peopleUnit}>人分</span></div>
@@ -689,43 +711,43 @@ function App() {
               </div>
             </div>
             {inventory.length === 0 && (
-              <div style={{background:"linear-gradient(135deg,#fff6e8 0%,#fff0f0 100%)",border:"1.5px solid #f0d8b8",borderRadius:16,padding:"18px 20px",marginBottom:14}}>
-                <div style={{fontSize:13,fontWeight:700,color:"#888",marginBottom:12,letterSpacing:"0.1em"}}>✨ はじめての方へ</div>
-                <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                  <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-                    <div style={{background:"#e08c3a",color:"#fff",width:24,height:24,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0}}>1</div>
+              <div style={{background:"linear-gradient(135deg,#fff5ea 0%,#fdf4e8 100%)",border:"1.5px solid #f0d8b8",borderRadius:24,padding:"22px 22px",marginBottom:16,boxShadow:"0 2px 14px rgba(214,120,80,0.08)"}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#d67850",marginBottom:16,letterSpacing:"0.15em"}}>✨ はじめましての方へ</div>
+                <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                  <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                    <div style={{background:"#d67850",color:"#fff",width:28,height:28,borderRadius:14,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,flexShrink:0,boxShadow:"0 2px 6px rgba(214,120,80,0.25)"}}>1</div>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:700,color:"#333"}}>食材を登録</div>
-                      <div style={{fontSize:11,color:"#888",marginTop:2}}>冷蔵庫を撮影 or レシートから一括登録</div>
+                      <div style={{fontSize:14,fontWeight:700,color:"#5a4a3a"}}>🥕 お買い物したら撮るだけ</div>
+                      <div style={{fontSize:11,color:"#8a7563",marginTop:3,lineHeight:1.6}}>冷蔵庫やレシートを撮影するだけでOK</div>
                     </div>
                   </div>
-                  <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-                    <div style={{background:"#e08c3a",color:"#fff",width:24,height:24,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0}}>2</div>
+                  <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                    <div style={{background:"#d67850",color:"#fff",width:28,height:28,borderRadius:14,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,flexShrink:0,boxShadow:"0 2px 6px rgba(214,120,80,0.25)"}}>2</div>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:700,color:"#333"}}>献立を提案してもらう</div>
-                      <div style={{fontSize:11,color:"#888",marginTop:2}}>今ある食材で AI が3品おすすめ</div>
+                      <div style={{fontSize:14,fontWeight:700,color:"#5a4a3a"}}>🍳 今日の献立、まかせて</div>
+                      <div style={{fontSize:11,color:"#8a7563",marginTop:3,lineHeight:1.6}}>ある食材でぴったりの献立を提案</div>
                     </div>
                   </div>
-                  <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-                    <div style={{background:"#e08c3a",color:"#fff",width:24,height:24,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0}}>3</div>
+                  <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                    <div style={{background:"#d67850",color:"#fff",width:28,height:28,borderRadius:14,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,flexShrink:0,boxShadow:"0 2px 6px rgba(214,120,80,0.25)"}}>3</div>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:700,color:"#333"}}>作ったら在庫を減らす</div>
-                      <div style={{fontSize:11,color:"#888",marginTop:2}}>食材が自動で更新されて翌日もラクラク</div>
+                      <div style={{fontSize:14,fontWeight:700,color:"#5a4a3a"}}>✨ ポイントも貯まっちゃう</div>
+                      <div style={{fontSize:11,color:"#8a7563",marginTop:3,lineHeight:1.6}}>使えば使うほどちょっといいことが…♪</div>
                     </div>
                   </div>
                 </div>
                 <button
-                  style={{...S.mainBtn,marginTop:16,marginBottom:0,width:"100%"}}
+                  style={{...S.mainBtn,marginTop:20,marginBottom:0,width:"100%"}}
                   onClick={() => setScreen("update")}
                   className="main-btn">
-                  🧺 まず食材を登録する
+                  🥕 まずは食材を登録してみる
                 </button>
               </div>
             )}
             <div style={S.sectionTitle}>🧺 冷蔵庫の中身</div>
             <div style={S.inventoryCard} onClick={() => setScreen("update")}>
               {inventory.length===0
-                ? <div style={S.inventoryEmpty}>まだ食材がありません<br/><span style={{fontSize:12,color:"#ddd"}}>タップして追加</span></div>
+                ? <div style={S.inventoryEmpty}>まだからっぽだよ〜<br/><span style={{fontSize:12,color:"#c0ac98"}}>タップして食材を入れよう</span></div>
                 : <>
                     <div style={S.inventoryChips}>
                       {[...inventory].sort((a,b) => { if(!a.expiry) return 1; if(!b.expiry) return -1; return new Date(a.expiry)-new Date(b.expiry); }).slice(0,8).map(i => (
@@ -753,8 +775,8 @@ function App() {
                 <textarea style={{...S.warmTextarea,marginBottom:0,border:"none",background:"transparent",height:"100%",fontSize:12,padding:10}} placeholder={"値引き情報を入力\n例：鶏もも半額"} value={shopText} onChange={e => setShopText(e.target.value)} rows={3}/>
               </div>
             </div>
-            <textarea style={S.warmTextarea} placeholder={"その他のご希望（任意）\n例：20分以内、子どもが食べやすいもの"} value={extras} onChange={e => setExtras(e.target.value)} rows={2}/>
-            <div style={{display:"flex",gap:8,marginBottom:12,background:"#faf0e6",borderRadius:12,padding:4}}>
+            <textarea style={S.warmTextarea} placeholder={"今日の気分があればどうぞ（任意）\n例：20分以内、子どもが食べやすいもの"} value={extras} onChange={e => setExtras(e.target.value)} rows={2}/>
+            <div style={{display:"flex",gap:8,marginBottom:12,background:"#fdecd8",borderRadius:16,padding:5}}>
               {[
                 {key:"set", label:"🍱 献立セット", desc:"主菜+副菜+汁物"},
                 {key:"single", label:"🥘 1品だけ", desc:"おかず1品を提案"},
@@ -767,60 +789,90 @@ function App() {
                       flex:1,
                       background: selected ? "#fff" : "transparent",
                       border: "none",
-                      borderRadius: 10,
-                      padding: "8px 4px",
+                      borderRadius: 12,
+                      padding: "9px 4px",
                       cursor: "pointer",
                       fontFamily: "inherit",
-                      boxShadow: selected ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
+                      boxShadow: selected ? "0 2px 6px rgba(214,120,80,0.15)" : "none",
                       transition: "all 0.2s",
                     }}>
-                    <div style={{fontSize:13, fontWeight:700, color: selected?"#e08c3a":"#aaa"}}>{m.label}</div>
-                    <div style={{fontSize:10, color: selected?"#888":"#bbb", marginTop:2}}>{m.desc}</div>
+                    <div style={{fontSize:13, fontWeight:700, color: selected?"#d67850":"#b89f87"}}>{m.label}</div>
+                    <div style={{fontSize:10, color: selected?"#8a7563":"#b89f87", marginTop:2}}>{m.desc}</div>
                   </button>
                 );
               })}
             </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>
-              {[
-                {label:"⏱ 短時間で", text:"20分以内で作れるもの"},
-                {label:"💪 がっつり", text:"ボリューム重視"},
-                {label:"🥗 ヘルシー", text:"ヘルシー・低カロリー"},
-                {label:"🍳 簡単", text:"簡単・初心者向け"},
-                {label:"👶 子ども向け", text:"子どもが食べやすい"},
-                {label:"🍻 つまみ", text:"お酒のつまみ"},
-              ].map(q => {
-                const selected = extras.includes(q.text);
-                return (
-                  <button key={q.label}
-                    style={{background:selected?"#e08c3a":"#faf0e6",border:`1.5px solid ${selected?"#e08c3a":"#f0d8b8"}`,borderRadius:20,padding:"5px 12px",fontSize:12,color:selected?"#fff":"#888",cursor:"pointer",fontFamily:"inherit"}}
-                    onClick={() => {
-                      if (selected) {
-                        setExtras(extras.split("、").filter(s => s.trim() !== q.text).join("、").trim());
-                      } else {
-                        setExtras(extras.trim() ? extras.trim().replace(/、$/,"") + "、" + q.text : q.text);
-                      }
-                    }}>
-                    {q.label}
-                  </button>
-                );
-              })}
-            </div>
+            {(() => {
+              const QUICK_GROUPS = [
+                {title:"気分", tags:[
+                  {label:"⏱ 15分以内", text:"15分以内で作れるもの"},
+                  {label:"💪 がっつり", text:"ボリューム重視"},
+                  {label:"🥗 ヘルシー", text:"ヘルシー・低カロリー"},
+                  {label:"🍳 簡単", text:"簡単・初心者向け"},
+                  {label:"🫖 優しい味", text:"優しい味付け・胃に優しい"},
+                  {label:"🌶 ピリ辛", text:"ピリ辛・刺激的"},
+                ]},
+                {title:"ジャンル", tags:[
+                  {label:"🌿 和風", text:"和食"},
+                  {label:"🍝 洋風", text:"洋食"},
+                  {label:"🥢 中華", text:"中華"},
+                  {label:"🍛 エスニック", text:"エスニック・カレー系"},
+                ]},
+                {title:"食材", tags:[
+                  {label:"🥬 野菜たっぷり", text:"野菜たっぷり"},
+                  {label:"🥩 お肉がっつり", text:"お肉メイン"},
+                  {label:"🐟 お魚", text:"魚料理"},
+                ]},
+                {title:"シーン", tags:[
+                  {label:"👶 子ども向け", text:"子どもが食べやすい"},
+                  {label:"🍻 お酒のつまみ", text:"お酒のつまみ"},
+                  {label:"🍱 お弁当にも", text:"お弁当にも使える"},
+                ]},
+              ];
+              return (
+                <div style={{marginBottom:16}}>
+                  {QUICK_GROUPS.map(g => (
+                    <div key={g.title} style={{marginBottom:12}}>
+                      <div style={{fontSize:11,fontWeight:700,color:"#b89f87",marginBottom:6,letterSpacing:"0.12em"}}>{g.title}</div>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                        {g.tags.map(q => {
+                          const selected = extras.includes(q.text);
+                          return (
+                            <button key={q.label}
+                              style={{background:selected?"#d67850":"#fdecd8",border:`1.5px solid ${selected?"#d67850":"#f0d8b8"}`,borderRadius:20,padding:"6px 14px",fontSize:12,color:selected?"#fff":"#8a7563",cursor:"pointer",fontFamily:"inherit",fontWeight:600,transition:"all 0.15s"}}
+                              onClick={() => {
+                                if (selected) {
+                                  setExtras(extras.split("、").filter(s => s.trim() !== q.text).join("、").trim());
+                                } else {
+                                  setExtras(extras.trim() ? extras.trim().replace(/、$/,"") + "、" + q.text : q.text);
+                                }
+                              }}>
+                              {q.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
-              <button style={{...S.mainBtn,background:"#5aaa6e",...(inventory.length===0?S.mainBtnDisabled:{})}} onClick={() => analyze("fridge")} disabled={inventory.length===0} className="main-btn">
-                🏠 {inventory.length===0?"在庫なし":"今あるもので"}
+              <button style={{...S.mainBtn,background:"#78aa6e",boxShadow:"0 3px 10px rgba(120,170,110,0.25)",...(inventory.length===0?S.mainBtnDisabled:{})}} onClick={() => analyze("fridge")} disabled={inventory.length===0} className="main-btn">
+                🥗 {inventory.length===0?"材料がまだかな":"冷蔵庫スッキリ！"}
               </button>
               <button style={S.mainBtn} onClick={() => analyze("shop")} className="main-btn">
-                🛒 買い物してから
+                🛒 お買い物してから
               </button>
             </div>
-            {resultLoading && <div style={S.loadingRow}><div style={S.spinnerOrange} className="spin"/><span style={{color:"#e08c3a",fontSize:13}}>AIが献立を考えています...</span></div>}
+            {resultLoading && <div style={S.loadingRow}><div style={S.spinnerOrange} className="spin"/><span style={{color:"#d67850",fontSize:13}}>今日の献立を考え中…🍳</span></div>}
           </div>
         )}
 
         {screen==="result" && (
           <div className="fade-in">
             <div style={S.resultHeaderWrap}>
-              <div style={S.resultTitleBig}>🍽️ 今夜の献立</div>
+              <div style={S.resultTitleBig}>🍳 今日のおすすめ</div>
               <div style={S.resultMeta}>{people}人分 · {new Date().toLocaleDateString("ja-JP",{month:"long",day:"numeric",weekday:"short"})}</div>
             </div>
 
@@ -870,16 +922,16 @@ function App() {
                     );
                   })}
                   {shopping && shopping !== "不要" && (
-                    <div style={{background:"#f0faf2",border:"1.5px solid #5aaa6e",borderRadius:16,padding:"16px 18px",marginBottom:12}}>
-                      <div style={{fontSize:13,fontWeight:700,color:"#5aaa6e",marginBottom:8}}>🛒 今日の買い物リスト</div>
-                      <div style={{fontSize:13,color:"#333",lineHeight:1.9,whiteSpace:"pre-wrap"}}>{shopping}</div>
+                    <div style={{background:"#f3f8ef",border:"1.5px solid #a8cb9c",borderRadius:20,padding:"18px 20px",marginBottom:12}}>
+                      <div style={{fontSize:13,fontWeight:700,color:"#5a8a50",marginBottom:10,letterSpacing:"0.08em"}}>🛒 お買い物メモ</div>
+                      <div style={{fontSize:13,color:"#5a4a3a",lineHeight:1.9,whiteSpace:"pre-wrap"}}>{shopping}</div>
                     </div>
                   )}
                 </>
               );
             })()}
 
-            <button style={S.mainBtn} onClick={() => { setResult(null); setShopImage(null); setShopB64(null); setShopText(""); setExtras(""); setScreen("home"); }} className="main-btn">もう一度考えてもらう 🔄</button>
+            <button style={S.mainBtn} onClick={() => { setResult(null); setShopImage(null); setShopB64(null); setShopText(""); setExtras(""); setScreen("home"); }} className="main-btn">✨ 別の献立を見せて</button>
           </div>
         )}
 
@@ -959,7 +1011,7 @@ function App() {
             <div style={{marginTop:24}}>
               <div style={{...S.sectionTitle,marginBottom:12}}>いまの在庫（{inventory.length}件）</div>
               {inventory.length===0
-                ? <div style={S.emptyState}>まだ食材が登録されていません</div>
+                ? <div style={S.emptyState}>まだからっぽだよ〜🍃<br/><span style={{fontSize:12}}>上のボタンから食材を登録してね</span></div>
                 : <>
                     {inventory.filter(i => { const d=daysUntil(i.expiry); return d!==null&&d<=1; }).length>0 && (
                       <div style={S.expiryWarningBox} className="fade-in">
@@ -1035,52 +1087,54 @@ function App() {
               const nextPts = rank.next;
               const progress = nextPts ? Math.min(100, Math.round(((points - rank.min) / (nextPts - rank.min)) * 100)) : 100;
               return (
-                <div style={{background:"linear-gradient(135deg,#fff6e8 0%,#fff0f0 100%)",border:"1.5px solid #f0d8b8",borderRadius:16,padding:"18px 20px",marginBottom:14,boxShadow:"0 2px 10px rgba(224,140,58,0.08)"}}>
-                  <div style={{fontSize:13,fontWeight:700,color:"#888",marginBottom:10,letterSpacing:"0.1em"}}>🏆 マイランク</div>
-                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-                    <div style={{fontSize:40}}>{rank.icon}</div>
+                <div style={{background:"linear-gradient(135deg,#fff5ea 0%,#fdecd8 100%)",border:"1.5px solid #f0d8b8",borderRadius:24,padding:"20px 22px",marginBottom:14,boxShadow:"0 2px 14px rgba(214,120,80,0.1)"}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"#d67850",marginBottom:12,letterSpacing:"0.15em"}}>🏆 マイランク</div>
+                  <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14}}>
+                    <div style={{fontSize:44}}>{rank.icon}</div>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:18,fontWeight:700,color:"#333"}}>{rank.name}</div>
-                      <div style={{fontSize:12,color:"#888"}}>現在 <span style={{fontWeight:700,color:"#e08c3a",fontSize:15}}>{points}</span> pt</div>
+                      <div style={{fontSize:19,fontWeight:700,color:"#5a4a3a",fontFamily:"'Kaisei Decol',serif"}}>{rank.name}</div>
+                      <div style={{fontSize:12,color:"#8a7563",marginTop:2}}>いま <span style={{fontWeight:700,color:"#d67850",fontSize:16}}>{points}</span> pt貯まってるよ</div>
                     </div>
                   </div>
                   {nextPts !== null ? (
                     <>
-                      <div style={{height:8,background:"#fff",borderRadius:4,overflow:"hidden",marginBottom:6}}>
-                        <div style={{height:"100%",width:`${progress}%`,background:"linear-gradient(90deg,#e08c3a,#f5a05a)",transition:"width 0.4s"}}/>
+                      <div style={{height:10,background:"#fff",borderRadius:5,overflow:"hidden",marginBottom:6,border:"1px solid #f0e0c8"}}>
+                        <div style={{height:"100%",width:`${progress}%`,background:"linear-gradient(90deg,#d67850,#e8a070)",transition:"width 0.4s"}}/>
                       </div>
-                      <div style={{fontSize:11,color:"#888",textAlign:"right"}}>次のランクまであと <span style={{color:"#e08c3a",fontWeight:700}}>{nextPts - points}pt</span></div>
+                      <div style={{fontSize:11,color:"#8a7563",textAlign:"right"}}>次のランクまであと <span style={{color:"#d67850",fontWeight:700}}>{nextPts - points}pt</span></div>
                     </>
                   ) : (
                     <div style={{fontSize:12,color:"#b8860b",textAlign:"center",fontWeight:700,padding:"4px 0"}}>✨ 最高ランク達成！いつもありがとう ✨</div>
                   )}
-                  <div style={{fontSize:11,color:"#aaa",marginTop:14,lineHeight:1.6,paddingTop:10,borderTop:"1px dashed #f0d8b8"}}>
-                    ・食材を追加で +1pt<br/>
-                    ・レシート登録で +10pt<br/>
-                    ・料理を作って在庫更新で +10pt<br/>
-                    <span style={{color:"#e08c3a",fontWeight:600}}>💝 ポイントの使い道は近日公開！お楽しみに</span>
+                  <div style={{fontSize:11,color:"#8a7563",marginTop:14,lineHeight:1.8,paddingTop:12,borderTop:"1px dashed #e8c8a8"}}>
+                    🥕 食材を登録で +1pt<br/>
+                    🧾 レシート登録で +10pt<br/>
+                    🍳 料理を作って在庫更新で +10pt<br/>
+                    <div style={{marginTop:10,padding:"10px 12px",background:"#fff5ea",borderRadius:12,color:"#c56640",fontWeight:600,lineHeight:1.7}}>
+                      💝 コツコツ貯めたポイントは、いつか家族や自分への「ちょっといいこと」に使えるかも♪
+                    </div>
                   </div>
                 </div>
               );
             })()}
-            <div style={{background:"#fff",border:"1.5px solid #e8d8c0",borderRadius:16,padding:"16px 18px",marginBottom:14}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#888",marginBottom:4,letterSpacing:"0.1em"}}>📦 データの引き継ぎ</div>
-              <div style={{fontSize:11,color:"#aaa",marginBottom:12,lineHeight:1.5}}>機種変更するときは、引き継ぎコードで在庫・ポイントを移せます</div>
-              <div style={{display:"flex",gap:8}}>
+            <div style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:20,padding:"18px 20px",marginBottom:14,boxShadow:"0 2px 10px rgba(160,120,80,0.05)"}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#5a4a3a",marginBottom:4,letterSpacing:"0.08em"}}>📦 データの引き継ぎ</div>
+              <div style={{fontSize:11,color:"#8a7563",marginBottom:14,lineHeight:1.6}}>機種変更しても大丈夫！コードで在庫もポイントも連れて行けるよ〜</div>
+              <div style={{display:"flex",gap:10}}>
                 <button
                   onClick={() => { setIssuedCode(null); setTransferModal("issue"); }}
-                  style={{flex:1,background:"#faf5ec",border:"1.5px solid #e8d8c0",borderRadius:10,padding:"10px 8px",fontSize:12,fontWeight:700,color:"#7a5a3a",cursor:"pointer",fontFamily:"inherit"}}>
+                  style={{flex:1,background:"#fdf4e8",border:"1.5px solid #e8c8a8",borderRadius:14,padding:"11px 8px",fontSize:12,fontWeight:700,color:"#c56640",cursor:"pointer",fontFamily:"inherit"}}>
                   🔑 コードを発行
                 </button>
                 <button
                   onClick={() => { setRedeemInput(""); setRedeemError(""); setTransferModal("redeem"); }}
-                  style={{flex:1,background:"#faf5ec",border:"1.5px solid #e8d8c0",borderRadius:10,padding:"10px 8px",fontSize:12,fontWeight:700,color:"#7a5a3a",cursor:"pointer",fontFamily:"inherit"}}>
+                  style={{flex:1,background:"#fdf4e8",border:"1.5px solid #e8c8a8",borderRadius:14,padding:"11px 8px",fontSize:12,fontWeight:700,color:"#c56640",cursor:"pointer",fontFamily:"inherit"}}>
                   📥 コードを入力
                 </button>
               </div>
             </div>
             <div style={S.settingCard}>
-              <div style={S.settingLabel}>👨‍👩‍👧 デフォルトの人数</div>
+              <div style={S.settingLabel}>🍽️ デフォルトの人数</div>
               <div style={S.peopleRow}>
                 <button style={S.peopleBtn} onClick={() => setPeople(p => Math.max(1,p-1))}>－</button>
                 <div style={S.peopleNum}>{people}<span style={S.peopleUnit}>人分</span></div>
@@ -1100,18 +1154,18 @@ function App() {
 
       </div>
       {consumeModal && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:200}} onClick={() => !consumeModal.loading && setConsumeModal(null)}>
-          <div style={{width:"100%",maxWidth:480,background:"#fff",borderRadius:"20px 20px 0 0",padding:"20px 20px 100px",maxHeight:"80vh",overflowY:"auto"}} onClick={e => e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:700,color:"#333",marginBottom:4}}>🍽️ お疲れさま！</div>
-            <div style={{fontSize:13,color:"#888",marginBottom:16}}>使った食材を確認してください</div>
+        <div style={{position:"fixed",inset:0,background:"rgba(90,74,58,0.4)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:200}} onClick={() => !consumeModal.loading && setConsumeModal(null)}>
+          <div style={{width:"100%",maxWidth:480,background:"#fffcf7",borderRadius:"28px 28px 0 0",padding:"24px 22px 110px",maxHeight:"80vh",overflowY:"auto"}} onClick={e => e.stopPropagation()}>
+            <div style={{fontSize:18,fontWeight:700,color:"#5a4a3a",marginBottom:4}}>🍳 お料理おつかれさま〜</div>
+            <div style={{fontSize:13,color:"#8a7563",marginBottom:16}}>どの食材を使ったか、確認してね</div>
             {consumeModal.loading ? (
-              <div style={S.loadingRow}><div style={S.spinnerOrange} className="spin"/><span style={{color:"#e08c3a",fontSize:13}}>使用量を予測中...</span></div>
+              <div style={S.loadingRow}><div style={S.spinnerOrange} className="spin"/><span style={{color:"#d67850",fontSize:13}}>使った分を予測中…🧐</span></div>
             ) : (
               <>
                 {consumeModal.items?.length === 0 && (
-                  <div style={{color:"#aaa",fontSize:13,textAlign:"center",padding:"12px 0 8px"}}>
-                    AI は在庫から使った食材を検出できませんでした。
-                    <br/>手動で追加できます。
+                  <div style={{color:"#8a7563",fontSize:13,textAlign:"center",padding:"12px 0 8px",lineHeight:1.7}}>
+                    うーん、在庫から使った食材を見つけられなかったみたい。
+                    <br/>手動で追加してね〜
                   </div>
                 )}
                 <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:12}}>
@@ -1166,21 +1220,21 @@ function App() {
         </div>
       )}
       {pointToast && (
-        <div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",zIndex:300,background:"#fff",border:"1.5px solid #f0d8b8",borderRadius:16,padding:"12px 20px",boxShadow:"0 4px 20px rgba(224,140,58,0.25)",animation:"fadeIn 0.3s ease",display:"flex",flexDirection:"column",alignItems:"center",gap:4,maxWidth:"calc(100% - 40px)"}}>
-          <div style={{fontSize:13,fontWeight:700,color:"#e08c3a"}}>+{pointToast.amount}pt 獲得！</div>
-          <div style={{fontSize:11,color:"#888"}}>{pointToast.reason}</div>
+        <div className="bounce-in" style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",zIndex:300,background:"#fffcf7",border:"2px solid #f0d8b8",borderRadius:22,padding:"14px 22px",boxShadow:"0 6px 24px rgba(214,120,80,0.25)",display:"flex",flexDirection:"column",alignItems:"center",gap:4,maxWidth:"calc(100% - 40px)"}}>
+          <div style={{fontSize:14,fontWeight:700,color:"#d67850"}}>✨ +{pointToast.amount}pt 貯まったよ！</div>
+          <div style={{fontSize:11,color:"#8a7563"}}>{pointToast.reason}</div>
           {pointToast.rankUp && (
-            <div style={{fontSize:12,fontWeight:700,color:"#b8860b",marginTop:4,background:"#fffbea",padding:"4px 10px",borderRadius:20}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#b8860b",marginTop:6,background:"#fff5ea",padding:"5px 14px",borderRadius:20,border:"1.5px solid #f0d8b8"}}>
               🎉 {pointToast.rankUp.icon} {pointToast.rankUp.name} にランクアップ！
             </div>
           )}
         </div>
       )}
       {transferModal === "issue" && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:250,padding:20}} onClick={() => setTransferModal(null)}>
-          <div style={{width:"100%",maxWidth:400,background:"#fff",borderRadius:20,padding:"24px 22px"}} onClick={e => e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:700,color:"#333",marginBottom:4}}>🔑 引き継ぎコード発行</div>
-            <div style={{fontSize:12,color:"#888",marginBottom:16,lineHeight:1.6}}>新しい端末でこのコードを入力すると、今のデータを引き継げます。</div>
+        <div style={{position:"fixed",inset:0,background:"rgba(90,74,58,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:250,padding:20}} onClick={() => setTransferModal(null)}>
+          <div style={{width:"100%",maxWidth:400,background:"#fffcf7",borderRadius:24,padding:"24px 22px"}} onClick={e => e.stopPropagation()}>
+            <div style={{fontSize:17,fontWeight:700,color:"#5a4a3a",marginBottom:4}}>🔑 引き継ぎコード発行</div>
+            <div style={{fontSize:12,color:"#8a7563",marginBottom:16,lineHeight:1.7}}>新しい端末でこのコードを入力すると、今のデータがそのままお引越しできるよ〜</div>
             {!issuedCode && (
               <button
                 onClick={handleIssueCode}

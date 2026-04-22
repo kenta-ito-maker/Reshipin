@@ -870,18 +870,22 @@ function App() {
             <div style={{fontSize:13,color:"#888",marginBottom:16}}>使った食材を確認してください</div>
             {consumeModal.loading ? (
               <div style={S.loadingRow}><div style={S.spinnerOrange} className="spin"/><span style={{color:"#e08c3a",fontSize:13}}>使用量を予測中...</span></div>
-            ) : consumeModal.items?.length === 0 ? (
-              <div style={{color:"#aaa",fontSize:13,textAlign:"center",padding:"24px 0"}}>
-                在庫から使った食材はないみたいです
-                <button style={{...S.mainBtn,marginTop:16}} onClick={() => setConsumeModal(null)} className="main-btn">閉じる</button>
-              </div>
             ) : (
               <>
-                <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
+                {consumeModal.items?.length === 0 && (
+                  <div style={{color:"#aaa",fontSize:13,textAlign:"center",padding:"12px 0 8px"}}>
+                    AI は在庫から使った食材を検出できませんでした。
+                    <br/>手動で追加できます。
+                  </div>
+                )}
+                <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:12}}>
                   {consumeModal.items.map((it,idx) => (
-                    <div key={idx} style={{background:"#faf8f4",borderRadius:12,padding:"12px 14px"}}>
+                    <div key={idx} style={{background:"#faf8f4",borderRadius:12,padding:"12px 14px",position:"relative"}}>
+                      <button
+                        onClick={() => setConsumeModal(m => ({...m, items: m.items.filter((_,i) => i!==idx)}))}
+                        style={{position:"absolute",top:8,right:10,background:"none",border:"none",color:"#bbb",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
                       <div style={{fontSize:14,fontWeight:700,color:"#333",marginBottom:2}}>{it.name}</div>
-                      <div style={{fontSize:11,color:"#aaa",marginBottom:8}}>AI予測：{it.used}</div>
+                      <div style={{fontSize:11,color:"#aaa",marginBottom:8}}>{it.manual ? "手動で追加" : `AI予測：${it.used}`}</div>
                       <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                         {["全部使った","少し残った","半分残った","ほぼ残ってる"].map(opt => {
                           const selected = it.remain === opt;
@@ -897,7 +901,28 @@ function App() {
                     </div>
                   ))}
                 </div>
-                <button style={S.mainBtn} onClick={confirmConsume} className="main-btn">在庫を更新する</button>
+                {(() => {
+                  const usedIds = new Set((consumeModal.items||[]).map(x => x.id));
+                  const remaining = inventory.filter(i => !usedIds.has(i.id));
+                  if (remaining.length === 0) return null;
+                  return (
+                    <div style={{marginBottom:20}}>
+                      <div style={{fontSize:12,color:"#888",marginBottom:6}}>＋ 他に使った食材を追加</div>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                        {remaining.map(item => (
+                          <button key={item.id}
+                            onClick={() => setConsumeModal(m => ({...m, items: [...(m.items||[]), {id: item.id, name: item.name, used: "", remain: "ほぼ残ってる", manual: true}]}))}
+                            style={{background:"#fff",border:"1.5px dashed #f0d8b8",borderRadius:20,padding:"5px 12px",fontSize:12,color:"#888",cursor:"pointer",fontFamily:"inherit"}}>
+                            + {CATEGORY_ICONS[item.category||"冷蔵"]} {item.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+                <button style={S.mainBtn} onClick={confirmConsume} className="main-btn">
+                  {(consumeModal.items||[]).length === 0 ? "そのまま閉じる" : "在庫を更新する"}
+                </button>
                 <button style={S.skipLink} onClick={() => setConsumeModal(null)}>キャンセル</button>
               </>
             )}

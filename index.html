@@ -124,11 +124,11 @@ const redeemTransferCode = async (code) => {
 // ─── ランク ───────────────────────────────────────────────────────────────────
 
 const RANKS = [
-  { name: "ブロンズ",       icon: "🥉", min: 0,    next: 100 },
-  { name: "シルバー",       icon: "🥈", min: 100,  next: 500 },
-  { name: "ゴールド",       icon: "🥇", min: 500,  next: 1000 },
-  { name: "ダイヤモンド",   icon: "💎", min: 1000, next: 3000 },
-  { name: "マスターシェフ", icon: "👑", min: 3000, next: null },
+  { name: "ブロンズ",       icon: "🥉", min: 0,    next: 50 },
+  { name: "シルバー",       icon: "🥈", min: 50,   next: 200 },
+  { name: "ゴールド",       icon: "🥇", min: 200,  next: 500 },
+  { name: "ダイヤモンド",   icon: "💎", min: 500,  next: 1500 },
+  { name: "マスターシェフ", icon: "👑", min: 1500, next: null },
 ];
 const getRank = (pts) => {
   for (let i = RANKS.length - 1; i >= 0; i--) {
@@ -549,6 +549,7 @@ function App() {
     await addToInventory(valid);
     setFridgeImages([]);
     setScreen("home");
+    if (valid.length > 0) awardPoints(1, "食材を追加した");
   };
 
   const analyze = async (mode) => {
@@ -588,9 +589,11 @@ function App() {
   const confirmUpdate = async () => {
     const valid = updatePreview.filter(i => i.name?.trim());
     await addToInventory(valid);
-    const wasReceipt = updateMode === "receipt";
+    const mode = updateMode;
     setUpdatePreview(null); setUpdateImage(null); setUpdateMode(null);
-    if (wasReceipt) awardPoints(10, "レシートを登録した");
+    if (valid.length === 0) return;
+    if (mode === "receipt") awardPoints(10, "レシートを登録した");
+    else awardPoints(1, "食材を追加した");
   };
 
   const removeItem = id => removeFromInventory(id);
@@ -983,6 +986,7 @@ function App() {
                     <div style={{fontSize:12,color:"#b8860b",textAlign:"center",fontWeight:700,padding:"4px 0"}}>✨ 最高ランク達成！いつもありがとう ✨</div>
                   )}
                   <div style={{fontSize:11,color:"#aaa",marginTop:14,lineHeight:1.6,paddingTop:10,borderTop:"1px dashed #f0d8b8"}}>
+                    ・食材を追加で +1pt<br/>
                     ・レシート登録で +10pt<br/>
                     ・料理を作って在庫更新で +10pt<br/>
                     <span style={{color:"#e08c3a",fontWeight:600}}>💝 ポイントの使い道は近日公開！お楽しみに</span>

@@ -50,6 +50,16 @@ body { background: #fdf9f3; font-family: 'Zen Maru Gothic', sans-serif; color: #
 .notebook-card { background: #fffcf7; border: 1.5px solid #f0e0c8; border-radius: 24px; position: relative; }
 /* 紙のようなテクスチャ */
 .paper-bg { background: #fdf9f3; background-image: radial-gradient(circle at 25% 25%, rgba(214,120,80,0.03) 0%, transparent 50%), radial-gradient(circle at 75% 75%, rgba(120,170,110,0.03) 0%, transparent 50%); }
+/* ガチャボタン揺れアニメ */
+@keyframes shake { 0%, 100% { transform: translateX(0) rotate(0deg); } 15% { transform: translateX(-3px) rotate(-1deg); } 30% { transform: translateX(3px) rotate(1deg); } 45% { transform: translateX(-2px) rotate(-0.6deg); } 60% { transform: translateX(2px) rotate(0.6deg); } 75% { transform: translateX(-1px) rotate(-0.3deg); } 90% { transform: translateX(1px) rotate(0.3deg); } }
+.shaking { animation: shake 0.6s ease-in-out infinite; }
+/* カプセル弾けるアニメ */
+@keyframes capsulePop { 0% { transform: scale(1) rotate(0deg); } 25% { transform: scale(1.3) rotate(-15deg); } 50% { transform: scale(0.9) rotate(10deg); } 75% { transform: scale(1.15) rotate(-5deg); } 100% { transform: scale(1) rotate(0deg); } }
+.capsule-pop { display: inline-block; font-size: 22px; animation: capsulePop 0.7s ease-in-out infinite; }
+.gacha-btn:hover:not(:disabled) { background: rgba(255,255,255,0.06) !important; }
+.gacha-btn:active:not(:disabled) { background: rgba(0,0,0,0.06) !important; }
+.reroll-btn:hover { color: #8a7563 !important; border-color: #b89f87 !important; }
+.alt-toggle:hover { background: #fdf6e8 !important; border-color: #d67850 !important; color: #5a4a3a !important; }
 </style>
 </head>
 <body>
@@ -391,6 +401,96 @@ const S = {
   warmTextarea:{width:"100%",background:"#fff",border:"1.5px solid #e8d8c0",borderRadius:16,color:"#5a4a3a",fontSize:15,padding:"16px 18px",resize:"none",fontFamily:"inherit",lineHeight:1.8,outline:"none",marginBottom:14},
   mainBtn:{width:"100%",background:"#d67850",color:"#fff",border:"none",borderRadius:18,padding:"17px 0",fontSize:17,fontWeight:700,fontFamily:"inherit",letterSpacing:"0.05em",cursor:"pointer",transition:"all 0.2s",boxShadow:"0 3px 10px rgba(214,120,80,0.2)"},
   mainBtnDisabled:{background:"#e8d8c8",color:"#b89f87",cursor:"not-allowed",boxShadow:"none"},
+  gachaCard:{
+    background:"linear-gradient(135deg,#e08a5e 0%,#d67850 50%,#c56640 100%)",
+    borderRadius:24,
+    boxShadow:"0 6px 20px rgba(214,120,80,0.35), inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -2px 0 rgba(0,0,0,0.08)",
+    marginTop:8,
+    marginBottom:18,
+    overflow:"hidden",
+  },
+  gachaBtn:{
+    width:"100%",
+    background:"transparent",
+    color:"#fff",
+    border:"none",
+    padding:"22px 16px 18px",
+    fontSize:18,
+    fontWeight:700,
+    fontFamily:"inherit",
+    letterSpacing:"0.04em",
+    cursor:"pointer",
+    transition:"all 0.2s",
+  },
+  gachaBtnDisabled:{opacity:0.85,cursor:"wait"},
+  gachaModeBar:{
+    display:"flex",
+    background:"rgba(0,0,0,0.12)",
+    padding:4,
+    margin:"0 12px 12px",
+    borderRadius:14,
+    position:"relative",
+  },
+  gachaModeBtn:{
+    flex:1,
+    background:"transparent",
+    border:"none",
+    borderRadius:11,
+    padding:"9px 8px",
+    fontSize:13,
+    fontWeight:600,
+    color:"rgba(255,255,255,0.7)",
+    fontFamily:"inherit",
+    cursor:"pointer",
+    transition:"all 0.2s",
+    position:"relative",
+    zIndex:2,
+  },
+  gachaModeBtnActive:{
+    color:"#c56640",
+    background:"#fff",
+    boxShadow:"0 2px 6px rgba(0,0,0,0.12)",
+  },
+  expiryHintBox:{
+    background:"#fdf6e8",
+    border:"1.5px solid #f0d8a8",
+    borderRadius:14,
+    padding:"12px 16px",
+    fontSize:13,
+    color:"#8a6d3a",
+    marginBottom:14,
+    lineHeight:1.6,
+    display:"flex",
+    alignItems:"flex-start",
+    gap:8,
+  },
+  rerollBtn:{
+    background:"transparent",
+    border:"1px solid #e8d8c0",
+    borderRadius:18,
+    padding:"10px 20px",
+    fontSize:12,
+    color:"#b89f87",
+    fontFamily:"inherit",
+    cursor:"pointer",
+    transition:"all 0.15s",
+    margin:"24px auto 0",
+    display:"block",
+  },
+  altToggleBtn:{
+    width:"100%",
+    background:"#fffcf7",
+    border:"1.5px dashed #e8d8c0",
+    borderRadius:14,
+    padding:"14px 16px",
+    fontSize:14,
+    fontWeight:600,
+    color:"#8a7563",
+    fontFamily:"inherit",
+    cursor:"pointer",
+    transition:"all 0.18s",
+    marginBottom:14,
+  },
   appHeader:{width:"100%",maxWidth:480,padding:"20px 20px 4px",display:"flex",alignItems:"center",justifyContent:"center"},
   logoSmall:{fontSize:20,fontWeight:700,color:"#d67850",fontFamily:"'Kaisei Decol',serif",letterSpacing:"0.08em"},
   appContent:{width:"100%",maxWidth:480,padding:"16px 20px 110px",flex:1},
@@ -562,6 +662,11 @@ function App() {
   const [shopText, setShopText] = useState("");
   const [extras, setExtras] = useState("");
   const [kondateMode, setKondateModeRaw] = useState(() => load("rsp_kondate_mode", "set")); // "set" | "single"
+  const [gachaMode, setGachaModeRaw] = useState(() => load("rsp_gacha_mode", "fridge")); // "fridge" | "shop"
+  const [gachaAnim, setGachaAnim] = useState(false);
+  const [lastExpiryHint, setLastExpiryHint] = useState(null);
+  const [altOpen, setAltOpen] = useState(false);
+  const setGachaMode = v => { setGachaModeRaw(v); save("rsp_gacha_mode", v); };
   const [result, setResult] = useState(null);
   const [resultLoading, setResultLoading] = useState(false);
   const shopRef = useRef();
@@ -631,13 +736,28 @@ function App() {
   };
 
   const analyze = async (mode) => {
+    setGachaAnim(true);
     setResultLoading(true);
+    setAltOpen(false);
+    // 賞味期限が近い食材を3つピックアップ
+    const today = new Date();
+    const nearExpiry = inventory
+      .filter(i => i.expiry)
+      .map(i => ({...i, days: Math.ceil((new Date(i.expiry) - today) / 86400000)}))
+      .filter(i => i.days >= -1 && i.days <= 5)
+      .sort((a,b) => a.days - b.days)
+      .slice(0,3);
+    const expiryHint = nearExpiry.length > 0
+      ? `※特に「${nearExpiry.map(i => i.name).join("、")}」は賞味期限が近いので、可能であれば優先的に使ってください。`
+      : "";
+    setLastExpiryHint(nearExpiry.length > 0 ? nearExpiry.map(i => i.name).join("、") : null);
     try {
       const isFridgeOnly = mode === "fridge";
       const promptFn = kondateMode === "set" ? PROMPT_KONDATE_SET : PROMPT_KONDATE_SINGLE;
-      const sysPrompt = isFridgeOnly
+      const sysBase = isFridgeOnly
         ? promptFn(inventory, "※在庫にある食材だけで作れる献立を提案してください。買い物不要のものだけ。", people, familyNote, extras)
         : promptFn(inventory, shopText || "特売・値引き情報なし", people, familyNote, extras);
+      const sysPrompt = expiryHint ? `${sysBase}\n\n${expiryHint}` : sysBase;
       const userText = kondateMode === "set"
         ? (isFridgeOnly ? "在庫にある食材で作れる「主菜＋副菜＋汁物」の献立セットを3案提案してください。" : "在庫と特売情報から「主菜＋副菜＋汁物」の献立セットを3案提案してください。")
         : (isFridgeOnly ? "在庫にある食材だけで1品料理を3つ提案してください。" : "在庫と特売情報から1品料理を3つ提案してください。");
@@ -645,10 +765,13 @@ function App() {
         ? [{type:"image",source:{type:"base64",media_type:"image/jpeg",data:shopB64}},{type:"text",text:`チラシ写真。補足：${shopText||"なし"}\n\n${userText}`}]
         : [{type:"text",text:userText}];
       const text = await callClaude(sysPrompt, [{role:"user",content}]);
+      // ガチャアニメの最低時間を確保（1.2秒）
+      await new Promise(r => setTimeout(r, 1200));
       setResult(text);
       setScreen("result");
     } catch(err) { setResult("エラー："+err.message); setScreen("result"); }
     setResultLoading(false);
+    setGachaAnim(false);
   };
 
   const handleUpdateScan = async (e, type) => {
@@ -716,18 +839,6 @@ function App() {
 
         {screen==="home" && (
           <div className="fade-in">
-            {(() => {
-              const h = new Date().getHours();
-              const greet = h < 10 ? "おはよう〜☀️" : h < 15 ? "こんにちは〜🍳" : h < 18 ? "お疲れ様〜🌇" : "今夜もおつかれさま〜🌙";
-              const sub = h < 10 ? "今日も素敵な一日にしましょう" : h < 15 ? "お昼ごはん、なに食べよっか" : h < 18 ? "今日の晩ごはん、決めちゃお" : "ほっとひと息、献立考えよっか";
-              return (
-                <>
-                  <div style={S.greeting}>{greet}</div>
-                  <div style={S.greetingSub}>{sub}</div>
-                </>
-              );
-            })()}
-
             <div style={S.peopleCard}>
               <div style={S.peopleLabel}>🍽️ 今日の人数</div>
               <div style={S.peopleRow}>
@@ -883,13 +994,39 @@ function App() {
                 </div>
               );
             })()}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
-              <button style={{...S.mainBtn,background:"#78aa6e",boxShadow:"0 3px 10px rgba(120,170,110,0.25)",...(inventory.length===0?S.mainBtnDisabled:{})}} onClick={() => analyze("fridge")} disabled={inventory.length===0} className="main-btn">
-                🥗 {inventory.length===0?"材料がまだかな":"冷蔵庫スッキリ！"}
+            <div style={S.gachaCard} className={gachaAnim ? "shaking" : ""}>
+              <button
+                style={{
+                  ...S.gachaBtn,
+                  ...(resultLoading ? S.gachaBtnDisabled : {}),
+                }}
+                onClick={() => analyze(gachaMode)}
+                disabled={resultLoading}
+                className="gacha-btn">
+                {gachaAnim ? (
+                  <span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+                    <span className="capsule-pop">🥚</span>
+                    <span>今日の一択を導き出しています…</span>
+                  </span>
+                ) : (
+                  <span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+                    <span style={{fontSize:22}}>✨</span>
+                    <span>AIに「今日の一択」をおまかせする</span>
+                  </span>
+                )}
               </button>
-              <button style={S.mainBtn} onClick={() => analyze("shop")} className="main-btn">
-                🛒 お買い物してから
-              </button>
+              <div style={S.gachaModeBar}>
+                <button
+                  style={{...S.gachaModeBtn,...(gachaMode==="fridge"?S.gachaModeBtnActive:{})}}
+                  onClick={() => setGachaMode("fridge")}>
+                  🥬 在庫だけで作る
+                </button>
+                <button
+                  style={{...S.gachaModeBtn,...(gachaMode==="shop"?S.gachaModeBtnActive:{})}}
+                  onClick={() => setGachaMode("shop")}>
+                  🛒 買い物もOK
+                </button>
+              </div>
             </div>
             {resultLoading && <div style={S.loadingRow}><div style={S.spinnerOrange} className="spin"/><span style={{color:"#d67850",fontSize:13}}>今日の献立を考え中…🍳</span></div>}
           </div>
@@ -898,9 +1035,16 @@ function App() {
         {screen==="result" && (
           <div className="fade-in">
             <div style={S.resultHeaderWrap}>
-              <div style={S.resultTitleBig}>🍳 今日のおすすめ</div>
+              <div style={S.resultTitleBig}>🍳 今日の一択</div>
               <div style={S.resultMeta}>{people}人分 · {new Date().toLocaleDateString("ja-JP",{month:"long",day:"numeric",weekday:"short"})}</div>
             </div>
+
+            {lastExpiryHint && (
+              <div style={S.expiryHintBox}>
+                <span style={{fontSize:16,flexShrink:0}}>⏰</span>
+                <span>賞味期限が近い <b style={{color:"#5a4a3a"}}>「{lastExpiryHint}」</b> を優先して導き出しました</span>
+              </div>
+            )}
 
             {(() => {
               // 結果を3つのレシピに分割（両モード対応）
@@ -922,31 +1066,48 @@ function App() {
                   {recipes.map((recipe, idx) => {
                     let title, badge, time, calories;
                     if (isSetMode) {
-                      // 献立セットモード：メインタイトル＝【献立セット①】＋主菜名
                       const setNumMatch = recipe.match(/【(献立セット[①②③])】/);
                       const shusaiMatch = recipe.match(/🥘\s*主菜\s*[:：]\s*(.+)/);
                       title = shusaiMatch
                         ? `${setNumMatch?.[1] || "献立セット"} ${shusaiMatch[1].trim()}`
                         : setNumMatch?.[1] || `献立セット${idx+1}`;
                       badge = "主菜+副菜+汁物";
-                      const timeMatch = recipe.match(/⏱ 合計調理時間：(.+)/);
+                      const timeMatch = recipe.match(/⏱ 合計調理時間:(.+)/);
                       time = timeMatch ? timeMatch[1].trim() : "";
-                      const calMatch = recipe.match(/🔥 合計カロリー：(.+)/);
+                      const calMatch = recipe.match(/🔥 合計カロリー:(.+)/);
                       calories = calMatch ? calMatch[1].trim() : "";
                     } else {
-                      // 1品モード
                       const titleMatch = recipe.match(/【([①②③].+?)】(.+)?/);
                       title = titleMatch ? titleMatch[1] : `レシピ${idx+1}`;
                       badge = recipe.includes("🏠") ? "🏠在庫だけ" : recipe.match(/🛒(.+?)を買えば/)?.[0] || "";
-                      const timeMatch = recipe.match(/⏱ 調理時間：(.+)/);
+                      const timeMatch = recipe.match(/⏱ 調理時間:(.+)/);
                       time = timeMatch ? timeMatch[1].trim() : "";
-                      const calMatch = recipe.match(/🔥 カロリー：(.+)/);
+                      const calMatch = recipe.match(/🔥 カロリー:(.+)/);
                       calories = calMatch ? calMatch[1].trim() : "";
                     }
+                    // メイン案（idx===0）は常に表示、別案は altOpen の時だけ表示
+                    if (idx === 0) {
+                      return (
+                        <RecipeCard key={idx} title={title} badge={badge} time={time} calories={calories} content={recipe} onCooked={() => openConsume(recipe)}/>
+                      );
+                    }
+                    // idx===1 の前に開閉ボタンを差し込む
+                    if (!altOpen) return null;
                     return (
                       <RecipeCard key={idx} title={title} badge={badge} time={time} calories={calories} content={recipe} onCooked={() => openConsume(recipe)}/>
                     );
                   })}
+                  {recipes.length > 1 && (
+                    <button
+                      style={S.altToggleBtn}
+                      className="alt-toggle"
+                      onClick={() => setAltOpen(!altOpen)}>
+                      {altOpen
+                        ? <span>▲ 別案を閉じる</span>
+                        : <span>▼ 別案も見てみる（あと{recipes.length - 1}案）</span>
+                      }
+                    </button>
+                  )}
                   {shopping && shopping !== "不要" && (
                     <div style={{background:"#f3f8ef",border:"1.5px solid #a8cb9c",borderRadius:20,padding:"18px 20px",marginBottom:12}}>
                       <div style={{fontSize:13,fontWeight:700,color:"#5a8a50",marginBottom:10,letterSpacing:"0.08em"}}>🛒 お買い物メモ</div>
@@ -957,7 +1118,12 @@ function App() {
               );
             })()}
 
-            <button style={S.mainBtn} onClick={() => { setResult(null); setShopImage(null); setShopB64(null); setShopText(""); setExtras(""); setScreen("home"); }} className="main-btn">✨ 別の献立を見せて</button>
+            <button
+              style={S.rerollBtn}
+              className="reroll-btn"
+              onClick={() => { setResult(null); setShopImage(null); setShopB64(null); setShopText(""); setExtras(""); setScreen("home"); }}>
+              🔄 別の一択を引き直す
+            </button>
           </div>
         )}
 

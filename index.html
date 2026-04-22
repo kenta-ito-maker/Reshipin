@@ -24,7 +24,48 @@ body { background: #faf8f4; font-family: 'M PLUS Rounded 1c', sans-serif; }
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useRef } = React;
+const { useState, useRef, useEffect } = React;
+
+// ─── SUPABASE ─────────────────────────────────────────────────────────────────
+
+const getUserId = () => {
+  let uid = localStorage.getItem("rsp_uid");
+  if (!uid) { uid = "user_" + Math.random().toString(36).slice(2) + Date.now(); localStorage.setItem("rsp_uid", uid); }
+  return uid;
+};
+
+const sbFetch = async (path, options = {}) => {
+  const res = await fetch(path, { headers: {"Content-Type":"application/json"}, ...options });
+  return res.json();
+};
+
+const loadInventory = async () => {
+  try {
+    const uid = getUserId();
+    const data = await sbFetch(`/api/inventory?user_id=${uid}`);
+    return Array.isArray(data) ? data.map(i => ({...i, id: i.id})) : [];
+  } catch { return []; }
+};
+
+const saveItem = async (item) => {
+  const uid = getUserId();
+  try {
+    const data = await sbFetch("/api/inventory", {
+      method: "POST",
+      body: JSON.stringify({user_id: uid, name: item.name, expiry: item.expiry || null}),
+    });
+    return Array.isArray(data) ? data[0] : data;
+  } catch { return null; }
+};
+
+const deleteItem = async (id) => {
+  try { await sbFetch(`/api/inventory?id=${id}`, {method:"DELETE"}); } catch {}
+};
+
+const updateItemDb = async (id, fields) => {
+  try { await sbFetch(`/api/inventory?id=${id}`, {method:"PATCH", body: JSON.stringify(fields)}); } catch {}
+};
+
 
 const PROMPT_FRIDGE_SCAN = `あなたは冷蔵庫の写真から食材を全て読み取るAIです。各食材の賞味期限を推定してください（冷蔵保存前提）。返答はJSONのみ。フォーマット：[{"name":"食材名","expiry":"YYYY-MM-DD or null"},...] 目安：肉・魚3日、葉野菜3日、根菜1週間、豆腐3日、卵2週間、調味料3ヶ月。`;
 const PROMPT_RECEIPT = `あなたはスーパーのレシートから購入食材を読み取るAIです。賞味期限を品目から推定してください。返答はJSONのみ。フォーマット：[{"name":"食材名","expiry":"YYYY-MM-DD"},...] 目安：肉・魚3日、葉野菜3日、根菜1週間、豆腐3日、卵2週間、調味料3ヶ月。読み取れない行は無視。`;
@@ -228,12 +269,41 @@ const RecipeCard = ({ title, badge, time, content }) => {
 
 function App() {
   const load = (key, fb) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fb; } catch { return fb; } };
-  const [inventory, setInvRaw] = useState(() => load("rsp_inv", []));
+  const [inventory, setInvRaw] = useState([]);
+  const [invLoading, setInvLoading] = useState(true);
   const [people, setPplRaw] = useState(() => load("rsp_ppl", 2));
   const [familyNote, setFamRaw] = useState(() => load("rsp_fam", ""));
-  const [screen, setScreen] = useState(() => load("rsp_inv",[]).length > 0 ? "home" : "fridge");
+  const [screen, setScreen] = useState("loading");
 
-  const setInventory = v => { const n = typeof v==="function"?v(inventory):v; setInvRaw(n); try{localStorage.setItem("rsp_inv",JSON.stringify(n));}catch{} };
+  useEffect(() => {
+    loadInventory().then(data => {
+      setInvRaw(data);
+      setInvLoading(false);
+      setScreen(data.length > 0 ? "home" : "fridge");
+    });
+  }, []);
+
+  const setInventory = async (v) => {
+    const n = typeof v==="function"?v(inventory):v;
+    setInvRaw(n);
+  };
+
+  const addToInventory = async (items) => {
+    const saved = await Promise.all(items.map(i => saveItem(i)));
+    const valid = saved.filter(Boolean);
+    setInvRaw(prev => [...prev, ...valid]);
+  };
+
+  const removeFromInventory = async (id) => {
+    await deleteItem(id);
+    setInvRaw(prev => prev.filter(i => i.id !== id));
+  };
+
+  const updateInInventory = async (id, field, value) => {
+    await updateItemDb(id, {[field]: value});
+    setInvRaw(prev => prev.map(i => i.id===id?{...i,[field]:value}:i));
+  };
+
   const setPeople = v => { const n = typeof v==="function"?v(people):v; setPplRaw(n); try{localStorage.setItem("rsp_ppl",JSON.stringify(n));}catch{} };
   const setFamilyNote = v => { setFamRaw(v); try{localStorage.setItem("rsp_fam",JSON.stringify(v));}catch{} };
 
@@ -276,9 +346,9 @@ function App() {
     setFridgeLoading(false);
   };
 
-  const confirmFridge = () => {
+  const confirmFridge = async () => {
     const valid = fridgePreview.filter(i => i.name?.trim());
-    setInventory(valid.map(i => ({ id: Date.now()+Math.random(), ...i })));
+    await addToInventory(valid);
     setFridgeImages([]);
     setScreen("home");
   };
@@ -317,14 +387,14 @@ function App() {
     setUpdateLoading(false);
   };
 
-  const confirmUpdate = () => {
+  const confirmUpdate = async () => {
     const valid = updatePreview.filter(i => i.name?.trim());
-    setInventory(prev => [...prev, ...valid.map(i => ({id:Date.now()+Math.random(),...i}))]);
+    await addToInventory(valid);
     setUpdatePreview(null); setUpdateImage(null); setUpdateMode(null);
   };
 
-  const removeItem = id => setInventory(prev => prev.filter(i => i.id!==id));
-  const updateItem = (id,f,v) => setInventory(prev => prev.map(i => i.id===id?{...i,[f]:v}:i));
+  const removeItem = id => removeFromInventory(id);
+  const updateItem = (id,f,v) => updateInInventory(id,f,v);
   const updatePreviewItem = (idx,f,v) => setUpdatePreview(p => p.map((it,i) => i===idx?{...it,[f]:v}:it));
 
   const TabBar = () => (
@@ -337,6 +407,15 @@ function App() {
           <div>{t.label}</div>
         </button>
       ))}
+    </div>
+  );
+
+
+  if (screen==="loading") return (
+    <div style={{...S.root, justifyContent:"center", alignItems:"center", gap:16}}>
+      <div style={{fontSize:36}}>🍱</div>
+      <div style={{color:"#e08c3a", fontSize:16, fontWeight:700}}>レシピン</div>
+      <div style={S.spinnerOrange} className="spin"/>
     </div>
   );
 
@@ -641,7 +720,7 @@ function App() {
               <textarea style={S.warmTextarea} placeholder={"例：大人2人・子ども1人（5歳）。辛いものはNG。魚料理が好き。"} value={familyNote} onChange={e => setFamilyNote(e.target.value)} rows={4}/>
               <div style={{color:"#aaa",fontSize:11,marginTop:-8}}>献立を提案するときに自動で考慮します</div>
             </div>
-            <button style={{...S.mainBtn,background:"#f0ebe3",color:"#c0392b",marginTop:8}} onClick={() => { setInventory([]); try{localStorage.removeItem("rsp_inv");}catch{} setScreen("fridge"); }}>
+            <button style={{...S.mainBtn,background:"#f0ebe3",color:"#c0392b",marginTop:8}} onClick={() => { setInvRaw([]); setScreen("fridge"); }}>
               最初からやり直す（在庫をリセット）
             </button>
           </div>

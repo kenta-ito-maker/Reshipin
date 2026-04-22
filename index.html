@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Recipin</title>
+<title>レシピン</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -110,7 +110,7 @@ const ExpiryPicker = ({ value, onChange }) => {
   return (
     <div>
       <div style={{fontSize:11,color:"#aaa",marginBottom:4}}>だいたいいつまで使えますか？</div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:6}}>
         {EXPIRY_OPTIONS.map(opt => {
           const selected = current === opt.label;
           return (
@@ -122,6 +122,8 @@ const ExpiryPicker = ({ value, onChange }) => {
           );
         })}
       </div>
+      <input type="date" value={value||""} onChange={e => onChange(e.target.value||null)}
+        style={{background:"#fff",border:"1.5px solid #f0e0c8",borderRadius:8,color:"#555",fontSize:12,padding:"6px 10px",fontFamily:"inherit",outline:"none",width:"100%"}}/>
     </div>
   );
 };
@@ -342,7 +344,7 @@ function App() {
     <div style={S.root}>
       <div style={S.onboardWrap} className="fade-in">
         <div style={S.onboardTop}>
-          <div style={S.logoWrap}><span style={S.logoEmoji}>🍱</span><span style={S.logoText}>Recipin</span></div>
+          <div style={S.logoWrap}><span style={S.logoEmoji}>🍱</span><span style={S.logoText}>レシピン</span></div>
           <div style={S.catchcopy}>「今日、何作ろう？」<br/>そのお悩み、解決します。</div>
         </div>
         {!fridgePreview ? (
@@ -399,7 +401,7 @@ function App() {
 
   return (
     <div style={S.root}>
-      <div style={S.appHeader}><div style={S.logoSmall}>🍱 Recipin</div></div>
+      <div style={S.appHeader}><div style={S.logoSmall}>🍱 レシピン</div></div>
       <div style={S.appContent}>
 
         {screen==="home" && (
@@ -507,7 +509,7 @@ function App() {
             <div style={S.sectionTitle}>食材を追加する</div>
             {!updateMode && !updatePreview && (
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
-                {[{key:"fridge2",icon:"🧊",title:"冷蔵庫を撮る",sub:"食材を一括認識"},{key:"receipt",icon:"🧾",title:"レシートを撮る",sub:"買ったものを一括登録"},{key:"single",icon:"🥦",title:"食材を撮る",sub:"1品ずつ読み込む"}].map(m => (
+                {[{key:"fridge2",icon:"🧊",title:"冷蔵庫を撮る",sub:"食材を一括認識"},{key:"receipt",icon:"🧾",title:"レシートを撮る",sub:"買ったものを一括登録"},{key:"single",icon:"🥦",title:"食材を撮る",sub:"1品ずつ読み込む"},{key:"manual",icon:"✏️",title:"手入力する",sub:"直接入力する"}].map(m => (
                   <button key={m.key} style={S.modeCard} className="mode-card" onClick={() => setUpdateMode(m.key)}>
                     <div style={{fontSize:32,marginBottom:6}}>{m.icon}</div>
                     <div style={S.modeCardTitle}>{m.title}</div>
@@ -516,6 +518,28 @@ function App() {
                 ))}
               </div>
             )}
+            {updateMode==="manual" && !updatePreview && (
+              <div className="fade-in">
+                <div style={S.backRow}>
+                  <button style={S.backBtn} onClick={() => setUpdateMode(null)}>← 戻る</button>
+                  <span style={{color:"#888",fontSize:13}}>手入力する</span>
+                </div>
+                <div style={S.previewList}>
+                  {(updatePreview||[{name:"",expiry:null}]).map((item,idx) => (
+                    <div key={idx} style={S.previewRow}>
+                      <input style={S.warmInput} value={item.name} placeholder="食材名（例：鶏もも肉）"
+                        onChange={e => setUpdatePreview(p => { const n=[...(p||[{name:"",expiry:null}])]; n[idx]={...n[idx],name:e.target.value}; return n; })}/>
+                      <ExpiryPicker value={item.expiry} onChange={v => setUpdatePreview(p => { const n=[...(p||[{name:"",expiry:null}])]; n[idx]={...n[idx],expiry:v}; return n; })}/>
+                    </div>
+                  ))}
+                  <button style={S.addRowBtn} onClick={() => setUpdatePreview(p => [...(p||[{name:"",expiry:null}]),{name:"",expiry:null}])}>＋ 食材を追加</button>
+                </div>
+                <button style={S.mainBtn} onClick={confirmUpdate} className="main-btn">
+                  在庫に追加する（{(updatePreview||[]).filter(i=>i.name).length}件）
+                </button>
+              </div>
+            )}
+
             {(updateMode==="fridge2"||updateMode==="receipt"||updateMode==="single") && !updatePreview && (
               <>
                 <div style={S.backRow}>

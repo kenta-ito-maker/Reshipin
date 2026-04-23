@@ -1,7 +1,7 @@
 {
   "name": "レピ - AIおまかせごはん",
   "short_name": "レピ",
-  "description": "冷蔵庫にあるものでAIが献立を提案",
+  "description": "AIが在庫から献立を提案する、おまかせごはんアプリ",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fdf9f3",

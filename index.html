@@ -757,13 +757,23 @@ const ParsedRecipe = ({ content }) => {
   );
 };
 
-const RecipeCard = ({ title, badge, time, calories, content, onCooked }) => {
+const RecipeCard = ({ title, badge, time, calories, content, onCooked, onReroll, rerolling }) => {
   const [open, setOpen] = React.useState(false);
   return (
     <div style={{background:"#fffcf7",borderRadius:24,boxShadow:"0 2px 14px rgba(160,120,80,0.08)",border:"1.5px solid #f0e0c8",marginBottom:14,overflow:"hidden"}}>
       <div style={{padding:"18px 20px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}} onClick={() => setOpen(o => !o)}>
         <div style={{flex:1}}>
-          <div style={{fontSize:16,fontWeight:700,color:"#5a4a3a",marginBottom:6,fontFamily:"'Kaisei Decol',serif"}}>{title}</div>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <div style={{fontSize:16,fontWeight:700,color:"#5a4a3a",fontFamily:"'Kaisei Decol',serif",flex:1}}>{title}</div>
+            {onReroll && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onReroll(); }}
+                disabled={rerolling}
+                style={{background:"none",border:"1px solid #e8d8c0",borderRadius:10,width:32,height:32,fontSize:15,cursor:rerolling?"wait":"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,opacity:rerolling?0.5:1,transition:"opacity 0.2s"}}>
+                {rerolling ? <span className="spin" style={{display:"inline-block",fontSize:13}}>⏳</span> : "🔄"}
+              </button>
+            )}
+          </div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {badge && <span style={{fontSize:11,background:"#fdecd8",color:"#d67850",borderRadius:20,padding:"3px 12px",fontWeight:600}}>{badge}</span>}
             {time && <span style={{fontSize:11,background:"#fdf4e8",color:"#8a7563",borderRadius:20,padding:"3px 12px",fontWeight:600}}>⏱ {time}</span>}
@@ -890,6 +900,8 @@ function App() {
   const [altOpen, setAltOpen] = useState(false);
   const setGachaMode = v => { setGachaModeRaw(v); save("rsp_gacha_mode", v); };
   const [result, setResult] = useState(null);
+  const [recipes, setRecipes] = useState([]); // parsed recipe blocks
+  const [rerollingIdx, setRerollingIdx] = useState(null);
   const [resultLoading, setResultLoading] = useState(false);
   const shopRef = useRef();
 
@@ -986,10 +998,50 @@ function App() {
       // ガチャアニメの最低時間を確保（1.2秒）
       await new Promise(r => setTimeout(r, 1200));
       setResult(text);
+      // パースしてrecipes stateにも保存
+      const parsedBlocks = text.split(/(?=【(?:献立セット)?[①②③])/).filter(b => b.match(/【(?:献立セット)?[①②③]/));
+      setRecipes(parsedBlocks);
       setScreen("result");
     } catch(err) { setResult("エラー："+err.message); setScreen("result"); }
     setResultLoading(false);
     setGachaAnim(false);
+  };
+
+  const rerollSingle = async (idx) => {
+    if (rerollingIdx !== null) return;
+    setRerollingIdx(idx);
+    try {
+      // 既存レシピの料理名を抽出
+      const existingNames = recipes.map(r => {
+        const m = r.match(/【(?:献立セット)?[①②③]\s*(.+?)】/) || r.match(/🥘\s*主菜\s*[:：]\s*(.+)/);
+        return m ? m[1].trim() : "";
+      }).filter(Boolean);
+      const isSet = kondateMode === "set";
+      const numLabel = ["①","②","③"][idx] || "①";
+
+      let baseSys;
+      if (gachaMode === "free") {
+        baseSys = PROMPT_FREE(people, familyNote, extras, kondateMode);
+      } else {
+        const isFridgeOnly = gachaMode === "fridge";
+        const promptFn = isSet ? PROMPT_KONDATE_SET : PROMPT_KONDATE_SINGLE;
+        baseSys = isFridgeOnly
+          ? promptFn(inventory, "※在庫にある食材だけで作れる献立を提案してください。買い物不要のものだけ。", people, familyNote, extras)
+          : promptFn(inventory, shopText || "特売・値引き情報なし", people, familyNote, extras);
+      }
+      const avoidList = existingNames.join("、");
+      const sysPrompt = `${baseSys}\n\n重要：以下の料理は既に提案済みです。これらと被らない全く別の案を1つだけ提案してください。\n提案済み：${avoidList}`;
+      const formatHint = isSet
+        ? `【献立セット${numLabel}】の形式で、主菜＋副菜＋汁物の1セットだけ提案してください。`
+        : `【${numLabel} 料理名】の形式で、1品だけ提案してください。`;
+      const text = await callClaude(sysPrompt, [{role:"user",content:[{type:"text",text:formatHint}]}]);
+      // レスポンスからレシピブロックを抽出
+      const newBlocks = text.split(/(?=【(?:献立セット)?[①②③])/).filter(b => b.match(/【(?:献立セット)?[①②③]/));
+      if (newBlocks.length > 0) {
+        setRecipes(prev => prev.map((r, i) => i === idx ? newBlocks[0] : r));
+      }
+    } catch(e) { /* 失敗時は何もしない（元のカードのまま） */ }
+    setRerollingIdx(null);
   };
 
   const handleUpdateScan = async (e, type) => {
@@ -1130,7 +1182,7 @@ function App() {
                 <textarea style={{...S.warmTextarea,marginBottom:0,border:"none",background:"transparent",height:"100%",fontSize:12,padding:10}} placeholder={"値引き情報を入力\n例：鶏もも半額"} value={shopText} onChange={e => setShopText(e.target.value)} rows={3}/>
               </div>
             </div>
-            <textarea style={S.warmTextarea} placeholder={"今日の気分があればどうぞ（任意）\n例：20分以内、子どもが食べやすいもの"} value={extras} onChange={e => setExtras(e.target.value)} rows={2}/>
+            <textarea style={S.warmTextarea} placeholder={"追加のリクエスト（任意）\n例：あっさり系で、和食多め、20分以内"} value={extras} onChange={e => setExtras(e.target.value)} rows={2}/>
             <div style={{display:"flex",gap:8,marginBottom:12,background:"#fdecd8",borderRadius:16,padding:5}}>
               {[
                 {key:"set", label:"🍱 献立セット", desc:"主菜+副菜+汁物"},
@@ -1259,12 +1311,7 @@ function App() {
             </div>
 
             {(() => {
-              // 結果を3つのレシピに分割（両モード対応）
-              // 1品モード: 【① 料理名】 / 【② 料理名】 / 【③ 料理名】
-              // 献立セット: 【献立セット①】 / 【献立セット②】 / 【献立セット③】
-              const blocks = result.split(/(?=【(?:献立セット)?[①②③])/);
-              const recipes = blocks.filter(b => b.match(/【(?:献立セット)?[①②③]/));
-              const shopping = result.match(/🛒 今日の買い物リスト：([\s\S]+?)$/)?.[1]?.trim();
+              const shopping = result?.match(/🛒 (?:今日の買い物リスト|必要な食材リスト)：([\s\S]+?)$/)?.[1]?.trim();
               const isSetMode = recipes.some(r => r.includes("【献立セット"));
 
               return (
@@ -1294,13 +1341,16 @@ function App() {
                     // メイン案（idx===0）は常に表示、別案は altOpen の時だけ表示
                     if (idx === 0) {
                       return (
-                        <RecipeCard key={idx} title={title} badge={badge} time={time} calories={calories} content={recipe} onCooked={gachaMode!=="free" ? () => openConsume(recipe) : null}/>
+                        <RecipeCard key={idx+recipe.slice(0,30)} title={title} badge={badge} time={time} calories={calories} content={recipe}
+                          onCooked={gachaMode!=="free" ? () => openConsume(recipe) : null}
+                          onReroll={() => rerollSingle(idx)} rerolling={rerollingIdx===idx}/>
                       );
                     }
-                    // idx===1 の前に開閉ボタンを差し込む
                     if (!altOpen) return null;
                     return (
-                      <RecipeCard key={idx} title={title} badge={badge} time={time} calories={calories} content={recipe} onCooked={gachaMode!=="free" ? () => openConsume(recipe) : null}/>
+                      <RecipeCard key={idx+recipe.slice(0,30)} title={title} badge={badge} time={time} calories={calories} content={recipe}
+                        onCooked={gachaMode!=="free" ? () => openConsume(recipe) : null}
+                        onReroll={() => rerollSingle(idx)} rerolling={rerollingIdx===idx}/>
                     );
                   })}
                   {recipes.length > 1 && (
@@ -1329,13 +1379,13 @@ function App() {
                 style={S.rerollKeepBtn}
                 className="reroll-keep-btn"
                 disabled={resultLoading}
-                onClick={() => { setResult(null); analyze(gachaMode); }}>
+                onClick={() => { setResult(null); setRecipes([]); analyze(gachaMode); }}>
                 {resultLoading ? "🥚 もう一度引いています…" : "🔄 同じ条件で違う候補を見る"}
               </button>
               <button
                 style={S.rerollBtn}
                 className="reroll-btn"
-                onClick={() => { setResult(null); setShopImage(null); setShopB64(null); setShopText(""); setExtras(""); setAltOpen(false); setScreen("home"); }}>
+                onClick={() => { setResult(null); setRecipes([]); setShopImage(null); setShopB64(null); setShopText(""); setAltOpen(false); setScreen("home"); }}>
                 ⚙️ 条件を変えてやり直す
               </button>
             </div>

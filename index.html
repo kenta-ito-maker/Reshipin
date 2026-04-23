@@ -915,7 +915,7 @@ const ParsedRecipe = ({ content }) => {
   );
 };
 
-const RecipeCard = ({ title, badge, time, calories, content, onCooked, onReroll, rerolling, onSave, saved, onCook }) => {
+const RecipeCard = ({ title, badge, time, calories, content, onCooked, onSave, saved, onCook }) => {
   const [open, setOpen] = React.useState(false);
   return (
     <div style={{background:"#fffcf7",borderRadius:24,boxShadow:"0 2px 14px rgba(160,120,80,0.08)",border:"1.5px solid #f0e0c8",marginBottom:14,overflow:"hidden"}}>
@@ -925,16 +925,9 @@ const RecipeCard = ({ title, badge, time, calories, content, onCooked, onReroll,
             <div style={{fontSize:16,fontWeight:700,color:"#5a4a3a",fontFamily:"'Kaisei Decol',serif",flex:1}}>{title}</div>
             {onSave && (
               <button onClick={(e) => { e.stopPropagation(); onSave(); }}
-                style={{background:"none",border:"1px solid #e8d8c0",borderRadius:10,width:32,height:32,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                {saved ? "🔖" : "📑"}
-              </button>
-            )}
-            {onReroll && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onReroll(); }}
-                disabled={rerolling}
-                style={{background:"none",border:"1px solid #e8d8c0",borderRadius:10,width:32,height:32,fontSize:15,cursor:rerolling?"wait":"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,opacity:rerolling?0.5:1,transition:"opacity 0.2s"}}>
-                {rerolling ? <span className="egg-wobble" style={{fontSize:14}}>🥚</span> : "🔄"}
+                style={{background:saved?"#fdecd8":"none",border:`1px solid ${saved?"#d67850":"#e8d8c0"}`,borderRadius:10,padding:"4px 10px",fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:4,flexShrink:0,transition:"all 0.2s"}}>
+                <span>{saved ? "📌" : "🔖"}</span>
+                <span style={{fontSize:10,fontWeight:700,color:saved?"#d67850":"#b89f87"}}>{saved?"保存済":"保存"}</span>
               </button>
             )}
           </div>
@@ -983,7 +976,8 @@ function App() {
   const [cookingInProgress, setCookingInProgress] = useState(false);
   const [points, setPoints] = useState(0);
   const [pointToast, setPointToast] = useState(null); // {amount, reason}
-  const [shareMenu, setShareMenu] = useState(null); // "menu" | "made" | null
+  const [shareMenu, setShareMenu] = useState(false);
+  const [sharePhoto, setSharePhoto] = useState(null); // File object
   const [shareLoading, setShareLoading] = useState(false);
   const [transferModal, setTransferModal] = useState(null); // "issue" | "redeem" | null
   const [issuedCode, setIssuedCode] = useState(null);
@@ -1023,19 +1017,19 @@ function App() {
   };
 
   // ─── シェア機能 ──────────────────────────────────────────────────
-  const getShareText = (type) => {
+  const getShareText = (hasPhoto) => {
     const dishNames = recipes.map(r => {
       const m = r.match(/【(?:献立セット)?[①②③]\s*(.+?)】/) || r.match(/🥘\s*主菜\s*[:：]\s*(.+)/);
       return m ? m[1].trim() : "";
     }).filter(Boolean).map(n => `・${n}`).join("\n");
-    if (type === "made") {
-      return `今日、レピの献立で作ったよ！🍳\n${dishNames}\n#レピごはん #作ったよ https://recip.in`;
-    }
-    return `今日のレピ献立🍳\n${dishNames}\n#レピごはん https://recip.in`;
+    return hasPhoto
+      ? `今日作ったよ🍳\n${dishNames}\n#レピごはん https://recip.in`
+      : `AIで今日の献立決めた🍳\n${dishNames}\n#レピごはん https://recip.in`;
   };
 
-  const doShare = async (target, type) => {
-    const text = getShareText(type);
+  const doShare = async (target) => {
+    const text = getShareText(!!sharePhoto);
+    const type = sharePhoto ? "made" : "menu";
     setShareLoading(true);
     // シェア画面を開く
     if (target === "x") {
@@ -1068,20 +1062,7 @@ function App() {
     setShareMenu(null);
   };
 
-  const doNativeShare = async () => {
-    const text = getShareText("made");
-    if (navigator.share) {
-      try { await navigator.share({ text, url: "https://recip.in" }); } catch {}
-      // ネイティブシェア後もポイント付与（X扱い）
-      try {
-        const uid = getUserId();
-        const r = await sbFetch("/api/share", { method: "POST", body: JSON.stringify({ user_id: uid, share_target: "x", share_type: "made" }) });
-        if (r.awarded) { setPoints(r.balance); setPointToast({amount: r.points, reason: "シェアありがとう！"}); setTimeout(() => setPointToast(null), 3500); }
-      } catch {}
-    } else {
-      setShareMenu("made");
-    }
-  };
+  const sharePhotoRef = useRef();
 
   // ─── レシピ保存 ─────────────────────────────────────────────────
   const getRecipeName = (content) => {
@@ -1095,10 +1076,12 @@ function App() {
     if (existing) {
       await sbFetch(`/api/recipes?id=${existing.id}`, {method:"DELETE"});
       setSavedRecipes(prev => prev.filter(r => r.id !== existing.id));
+      setPointToast({amount:0, reason:"保存を解除しました"}); setTimeout(()=>setPointToast(null),2000);
     } else {
       const uid = getUserId();
       const data = await sbFetch("/api/recipes", {method:"POST", body: JSON.stringify({user_id: uid, recipe_name: name, recipe_data: {content}})});
       if (Array.isArray(data) && data[0]) setSavedRecipes(prev => [data[0], ...prev]);
+      setPointToast({amount:0, reason:"📌 保存しました（設定→保存レシピで確認できます）"}); setTimeout(()=>setPointToast(null),2500);
     }
   };
 
@@ -1214,7 +1197,6 @@ function App() {
   const setGachaMode = v => { setGachaModeRaw(v); try{localStorage.setItem("rsp_gacha_mode",JSON.stringify(v));}catch{} };
   const [result, setResult] = useState(null);
   const [recipes, setRecipes] = useState([]); // parsed recipe blocks
-  const [rerollingIdx, setRerollingIdx] = useState(null);
   const [resultLoading, setResultLoading] = useState(false);
   const [resultComment, setResultComment] = useState("");
 
@@ -1367,54 +1349,6 @@ function App() {
     setGachaAnim(false);
   };
 
-  const rerollSingle = async (idx) => {
-    if (rerollingIdx !== null) return;
-    SFX.tap();
-    setRerollingIdx(idx);
-    try {
-      // 既存レシピの料理名を抽出
-      const existingNames = recipes.map(r => {
-        const m = r.match(/【(?:献立セット)?[①②③]\s*(.+?)】/) || r.match(/🥘\s*主菜\s*[:：]\s*(.+)/);
-        return m ? m[1].trim() : "";
-      }).filter(Boolean);
-      const isSet = kondateMode === "set";
-      const numLabel = ["①","②","③"][idx] || "①";
-
-      const allExtras = [extras, resultComment].filter(Boolean).join("、");
-      let baseSys;
-      if (appMode === "meal_prep") {
-        const isFridgeOnly = gachaMode === "fridge";
-        baseSys = PROMPT_MEAL_PREP(inventory,
-          isFridgeOnly ? "※在庫にある食材だけで。" : (shopText || "特売・値引き情報なし"),
-          people, familyNote, allExtras, prepDays);
-      } else if (gachaMode === "free") {
-        baseSys = PROMPT_FREE(people, familyNote, allExtras, kondateMode);
-      } else {
-        const isFridgeOnly = gachaMode === "fridge";
-        const promptFn = isSet ? PROMPT_KONDATE_SET : PROMPT_KONDATE_SINGLE;
-        baseSys = isFridgeOnly
-          ? promptFn(inventory, "※在庫にある食材だけで作れる献立を提案してください。買い物不要のものだけ。", people, familyNote, allExtras)
-          : promptFn(inventory, shopText || "特売・値引き情報なし", people, familyNote, allExtras);
-      }
-      const avoidList = existingNames.join("、");
-      const sysPrompt = `${baseSys}\n\n重要：以下の料理は既に提案済みです。これらと被らない全く別の案を1つだけ提案してください。\n提案済み：${avoidList}`;
-      const formatHint = appMode === "meal_prep"
-        ? `【${numLabel} 料理名】の形式で、作り置き用の1品だけ提案してください。保存目安・リメイクも含めて。`
-        : isSet
-        ? `【献立セット${numLabel}】の形式で、主菜＋副菜＋汁物の1セットだけ提案してください。`
-        : `【${numLabel} 料理名】の形式で、1品だけ提案してください。`;
-      const text = await callClaude(sysPrompt, [{role:"user",content:[{type:"text",text:formatHint}]}]);
-      // レスポンスからレシピブロックを抽出
-      const newBlocks = text.split(/(?=【(?:献立セット)?[①②③])/).filter(b => b.match(/【(?:献立セット)?[①②③]/));
-      if (newBlocks.length > 0) {
-        const updated = recipes.map((r, i) => i === idx ? newBlocks[0] : r);
-        setRecipes(updated);
-        saveAnalysis(result, updated, gachaMode);
-        SFX.dishReady();
-      }
-    } catch(e) { /* 失敗時は何もしない */ }
-    setRerollingIdx(null);
-  };
 
   const handleUpdateScan = async (e, type) => {
     const f = e.target.files[0]; if (!f) return;
@@ -1754,7 +1688,7 @@ function App() {
                         <RecipeCard key={idx+recipe.slice(0,30)} title={title} badge={badge} time={time} calories={calories} content={recipe}
                           onSave={() => toggleSaveRecipe(recipe)} saved={isRecipeSaved(recipe)}
                           onCook={appMode==="daily" ? () => handleCook(title, recipe) : null}
-                          onReroll={() => rerollSingle(idx)} rerolling={rerollingIdx===idx}/>
+/>
                       );
                     }
                     if (!altOpen) return null;
@@ -1792,17 +1726,10 @@ function App() {
               );
             })()}
 
-            {/* シェアボタン */}
-            <div style={{display:"flex",gap:10,marginTop:20,marginBottom:4}}>
-              <button onClick={() => setShareMenu("menu")}
-                style={{flex:1,background:"#e8f4fd",border:"1.5px solid #b8d8f0",borderRadius:16,padding:"14px 12px",fontSize:13,fontWeight:700,color:"#3a7ab5",cursor:"pointer",fontFamily:"inherit"}}>
-                📢 シェアする
-              </button>
-              <button onClick={doNativeShare}
-                style={{flex:1,background:"#edf7eb",border:"1.5px solid #b0d8a0",borderRadius:16,padding:"14px 12px",fontSize:13,fontWeight:700,color:"#5a8a50",cursor:"pointer",fontFamily:"inherit"}}>
-                🍳 作ったよ！
-              </button>
-            </div>
+            <button onClick={() => { setSharePhoto(null); setShareMenu(true); }}
+              style={{width:"100%",background:"#e8f4fd",border:"1.5px solid #b8d8f0",borderRadius:16,padding:"14px 12px",fontSize:14,fontWeight:700,color:"#3a7ab5",cursor:"pointer",fontFamily:"inherit",marginTop:20,marginBottom:4}}>
+              📢 シェアする
+            </button>
 
             <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:10}}>
               <div style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:18,padding:"14px 16px"}}>
@@ -2267,18 +2194,28 @@ function App() {
         </div>
       )}
       {shareMenu && (
-        <div style={{position:"fixed",inset:0,background:"rgba(90,74,58,0.4)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:200}} onClick={() => setShareMenu(null)}>
+        <div style={{position:"fixed",inset:0,background:"rgba(90,74,58,0.4)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:200}} onClick={() => setShareMenu(false)}>
           <div style={{width:"100%",maxWidth:480,background:"#fffcf7",borderRadius:"28px 28px 0 0",padding:"24px 22px 40px"}} onClick={e => e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:700,color:"#5a4a3a",marginBottom:4}}>{shareMenu==="made"?"🍳 作ったよ！をシェア":"📢 献立をシェア"}</div>
-            <div style={{fontSize:12,color:"#8a7563",marginBottom:18}}>シェアしてポイントをゲットしよう</div>
+            <div style={{fontSize:17,fontWeight:700,color:"#5a4a3a",marginBottom:4}}>📢 献立をシェア</div>
+            <div style={{fontSize:12,color:"#8a7563",marginBottom:14}}>シェアしてポイントをゲットしよう</div>
+            {/* 写真添付 */}
+            <div style={{marginBottom:14}}>
+              <input ref={sharePhotoRef} type="file" accept="image/*" style={{display:"none"}} onChange={e => { if(e.target.files[0]) setSharePhoto(e.target.files[0]); }}/>
+              <button onClick={() => sharePhotoRef.current?.click()}
+                style={{width:"100%",display:"flex",alignItems:"center",gap:10,background:sharePhoto?"#edf7eb":"#faf8f4",border:`1.5px ${sharePhoto?"solid #b0d8a0":"dashed #e8d8c0"}`,borderRadius:14,padding:"12px 16px",cursor:"pointer",fontFamily:"inherit"}}>
+                <span style={{fontSize:20}}>{sharePhoto?"✅":"📸"}</span>
+                <span style={{flex:1,fontSize:13,fontWeight:600,color:sharePhoto?"#5a8a50":"#8a7563",textAlign:"left"}}>{sharePhoto?`${sharePhoto.name.slice(0,20)}... 添付済み`:"写真を添える（任意）"}</span>
+                {sharePhoto && <span onClick={(e)=>{e.stopPropagation();setSharePhoto(null);}} style={{color:"#ccc",fontSize:14}}>✕</span>}
+              </button>
+            </div>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
               {[
-                {key:"x",icon:"🐦",label:"X でシェア",pts:"+30pt",color:"#1DA1F2"},
-                {key:"instagram",icon:"📷",label:"Instagramでシェア",pts:"+30pt",color:"#E1306C"},
-                {key:"line",icon:"💬",label:"LINEでシェア",pts:"+10pt",color:"#06C755"},
+                {key:"x",icon:"🐦",label:"X でシェア",pts:"+30pt"},
+                {key:"instagram",icon:"📷",label:"Instagramでシェア",pts:"+30pt"},
+                {key:"line",icon:"💬",label:"LINEでシェア",pts:"+10pt"},
               ].map(s => (
-                <button key={s.key} onClick={() => doShare(s.key, shareMenu)} disabled={shareLoading}
-                  style={{display:"flex",alignItems:"center",gap:12,background:"#fff",border:"1.5px solid #f0e0c8",borderRadius:16,padding:"14px 18px",cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s",width:"100%",textAlign:"left"}}>
+                <button key={s.key} onClick={() => doShare(s.key)} disabled={shareLoading}
+                  style={{display:"flex",alignItems:"center",gap:12,background:"#fff",border:"1.5px solid #f0e0c8",borderRadius:16,padding:"14px 18px",cursor:"pointer",fontFamily:"inherit",width:"100%",textAlign:"left"}}>
                   <span style={{fontSize:22}}>{s.icon}</span>
                   <span style={{flex:1,fontSize:14,fontWeight:700,color:"#5a4a3a"}}>{s.label}</span>
                   <span style={{fontSize:12,fontWeight:700,color:"#d67850",background:"#fdecd8",borderRadius:10,padding:"3px 10px"}}>{s.pts}</span>
@@ -2298,7 +2235,7 @@ function App() {
                 </button>
               </div>
             </div>
-            <button onClick={() => setShareMenu(null)} style={{width:"100%",background:"none",border:"none",color:"#888",fontSize:13,padding:"16px 0 0",cursor:"pointer",fontFamily:"inherit"}}>閉じる</button>
+            <button onClick={() => setShareMenu(false)} style={{width:"100%",background:"none",border:"none",color:"#888",fontSize:13,padding:"16px 0 0",cursor:"pointer",fontFamily:"inherit"}}>閉じる</button>
           </div>
         </div>
       )}

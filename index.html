@@ -1698,8 +1698,7 @@ function App() {
                     return (
                       <RecipeCard key={idx+recipe.slice(0,30)} title={title} badge={badge} time={time} calories={calories} content={recipe}
                         onSave={() => toggleSaveRecipe(recipe)} saved={isRecipeSaved(recipe)}
-                        onCook={appMode==="daily" ? () => handleCook(title, recipe) : null}
-                        onReroll={() => rerollSingle(idx)} rerolling={rerollingIdx===idx}/>
+                        onCook={appMode==="daily" ? () => handleCook(title, recipe) : null}/>
                     );
                   })}
                   {appMode!=="meal_prep" && recipes.length > 1 && (

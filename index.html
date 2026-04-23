@@ -1488,11 +1488,12 @@ function App() {
 
   const handleUpdateScan = async (e, type) => {
     const files = Array.from(e.target.files); if (!files.length) return;
+    e.target.value = ""; // 同じファイル再選択を許可
     setUpdateLoading(true);
     try {
       const imgs = await Promise.all(files.map(async f => ({url: URL.createObjectURL(f), b64: await toBase64(f), name: f.name})));
-      setUpdateImages(prev => [...prev, ...imgs]);
       const allImgs = [...updateImages, ...imgs];
+      setUpdateImages(allImgs);
       const prompt = type==="receipt"?PROMPT_RECEIPT:type==="single"?PROMPT_SINGLE:PROMPT_FRIDGE_SCAN;
       const content = [
         ...allImgs.map(img => ({type:"image",source:{type:"base64",media_type:"image/jpeg",data:img.b64}})),

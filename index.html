@@ -1549,29 +1549,32 @@ function App() {
             </div>}
             {appMode==="daily" && (() => {
               const CHIP_GROUPS = [
-                [
+                {title:"こだわり", tags:[
                   {label:"⏰ 15分以内", text:"15分以内で作れるもの"},
                   {label:"💪 がっつり", text:"ボリューム重視"},
                   {label:"🥗 ヘルシー", text:"ヘルシー・低カロリー"},
                   {label:"🔍 簡単", text:"簡単・初心者向け"},
                   {label:"🥘 優しい味", text:"優しい味付け・胃に優しい"},
                   {label:"🌶 ピリ辛", text:"ピリ辛・刺激的"},
-                ],[
+                ]},
+                {title:"ジャンル", tags:[
                   {label:"🌿 和食", text:"和食"},
                   {label:"🥢 中華", text:"中華"},
                   {label:"🍝 洋食", text:"洋食"},
                   {label:"🍛 エスニック", text:"エスニック・カレー系"},
                   {label:"🍜 麺系", text:"麺類を中心に"},
                   {label:"🍚 丼系", text:"丼ものを中心に"},
-                ],[
+                ]},
+                {title:"食材", tags:[
                   {label:"🥬 野菜たっぷり", text:"野菜たっぷり"},
                   {label:"🥩 お肉がっつり", text:"お肉メイン"},
                   {label:"🐟 お魚", text:"魚料理"},
-                ],[
+                ]},
+                {title:"シーン", tags:[
                   {label:"👶 子ども向け", text:"子どもが食べやすい"},
                   {label:"🍶 お酒のつまみ", text:"お酒のつまみ"},
                   {label:"🍱 お弁当にも", text:"お弁当にも使える"},
-                ],
+                ]},
               ];
               const chipBtn = (q) => {
                 const selected = extras.includes(q.text);
@@ -1590,10 +1593,13 @@ function App() {
                 );
               };
               return (
-                <div style={{marginBottom:16,display:"flex",flexDirection:"column",gap:8}}>
-                  {CHIP_GROUPS.map((group, gi) => (
-                    <div key={gi} style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                      {group.map(chipBtn)}
+                <div style={{marginBottom:16,display:"flex",flexDirection:"column",gap:10}}>
+                  {CHIP_GROUPS.map(g => (
+                    <div key={g.title}>
+                      <div style={{fontSize:11,fontWeight:700,color:"#b89f87",marginBottom:5,letterSpacing:"0.1em"}}>{g.title}</div>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                        {g.tags.map(chipBtn)}
+                      </div>
                     </div>
                   ))}
                 </div>

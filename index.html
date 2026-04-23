@@ -1336,6 +1336,7 @@ function App() {
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
           <div style={S.logoSmall}>🍳 レピ</div>
           <div style={{fontSize:9,color:"#b89f87",letterSpacing:"0.3em",fontWeight:700}}>REPI</div>
+          <div style={{fontSize:10,color:"#c0ac98",letterSpacing:"0.08em",marginTop:1}}>AIおまかせごはん</div>
         </div>
       </div>
       <div style={S.appContent}>
@@ -1362,7 +1363,7 @@ function App() {
               <div style={{...S.peopleCard,marginBottom:16}}>
                 <div style={S.peopleLabel}>📅 何日分？</div>
                 <div style={{display:"flex",gap:8}}>
-                  {[2,3,4].map(d => (
+                  {[2,3,4,5].map(d => (
                     <button key={d} onClick={() => setPrepDays(d)}
                       style={{background:prepDays===d?"#d67850":"#fdecd8",color:prepDays===d?"#fff":"#8a7563",border:"none",borderRadius:12,padding:"8px 18px",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
                       {d}日
@@ -1558,6 +1559,7 @@ function App() {
 
         {screen==="result" && (
           <div className="fade-in">
+            <button onClick={() => setScreen("home")} style={{background:"none",border:"none",color:"#d67850",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",padding:"4px 0",marginBottom:8}}>◀ 条件入力に戻る</button>
             <div style={S.resultHeaderWrap}>
               <div style={S.resultTitleBig}>{appMode==="meal_prep"?"🥡 今週の作り置き":gachaMode==="free"?"✨ 新しい料理との出会い":"🍳 今日の一択"}</div>
               <div style={S.resultMeta}>{appMode==="meal_prep"?`${prepDays}日分・おかず3品・`:""}{people}人分 · {new Date().toLocaleDateString("ja-JP",{month:"long",day:"numeric",weekday:"short"})}</div>

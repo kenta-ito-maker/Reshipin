@@ -1548,57 +1548,36 @@ function App() {
               })}
             </div>}
             {appMode==="daily" && (() => {
-              const QUICK_GROUPS = [
-                {title:"気分", tags:[
-                  {label:"⏱ 15分以内", text:"15分以内で作れるもの"},
-                  {label:"💪 がっつり", text:"ボリューム重視"},
-                  {label:"🥗 ヘルシー", text:"ヘルシー・低カロリー"},
-                  {label:"🍳 簡単", text:"簡単・初心者向け"},
-                  {label:"🫖 優しい味", text:"優しい味付け・胃に優しい"},
-                  {label:"🌶 ピリ辛", text:"ピリ辛・刺激的"},
-                ]},
-                {title:"ジャンル", tags:[
-                  {label:"🌿 和風", text:"和食"},
-                  {label:"🍝 洋風", text:"洋食"},
-                  {label:"🥢 中華", text:"中華"},
-                  {label:"🍛 エスニック", text:"エスニック・カレー系"},
-                ]},
-                {title:"食材", tags:[
-                  {label:"🥬 野菜たっぷり", text:"野菜たっぷり"},
-                  {label:"🥩 お肉がっつり", text:"お肉メイン"},
-                  {label:"🐟 お魚", text:"魚料理"},
-                ]},
-                {title:"シーン", tags:[
-                  {label:"👶 子ども向け", text:"子どもが食べやすい"},
-                  {label:"🍻 お酒のつまみ", text:"お酒のつまみ"},
-                  {label:"🍱 お弁当にも", text:"お弁当にも使える"},
-                ]},
+              const MOOD_CHIPS = [
+                {label:"⏱ 15分以内", text:"15分以内で作れるもの"},
+                {label:"💪 がっつり", text:"ボリューム重視"},
+                {label:"🥗 ヘルシー", text:"ヘルシー・低カロリー"},
+                {label:"🔍 簡単", text:"簡単・工程少なめ"},
+                {label:"🍜 麺系", text:"麺類を中心に"},
+                {label:"🍚 丼系", text:"丼ものを中心に"},
+                {label:"🍱 和食", text:"和食"},
+                {label:"🍝 洋食", text:"洋食"},
               ];
               return (
                 <div style={{marginBottom:16}}>
-                  {QUICK_GROUPS.map(g => (
-                    <div key={g.title} style={{marginBottom:12}}>
-                      <div style={{fontSize:11,fontWeight:700,color:"#b89f87",marginBottom:6,letterSpacing:"0.12em"}}>{g.title}</div>
-                      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                        {g.tags.map(q => {
-                          const selected = extras.includes(q.text);
-                          return (
-                            <button key={q.label}
-                              style={{background:selected?"#d67850":"#fdecd8",border:`1.5px solid ${selected?"#d67850":"#f0d8b8"}`,borderRadius:20,padding:"6px 14px",fontSize:12,color:selected?"#fff":"#8a7563",cursor:"pointer",fontFamily:"inherit",fontWeight:600,transition:"all 0.15s"}}
-                              onClick={() => {
-                                if (selected) {
-                                  setExtras(extras.split("、").filter(s => s.trim() !== q.text).join("、").trim());
-                                } else {
-                                  setExtras(extras.trim() ? extras.trim().replace(/、$/,"") + "、" + q.text : q.text);
-                                }
-                              }}>
-                              {q.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                    {MOOD_CHIPS.map(q => {
+                      const selected = extras.includes(q.text);
+                      return (
+                        <button key={q.label}
+                          style={{background:selected?"#d67850":"#fdecd8",border:`1.5px solid ${selected?"#d67850":"#f0d8b8"}`,borderRadius:20,padding:"6px 14px",fontSize:12,color:selected?"#fff":"#8a7563",cursor:"pointer",fontFamily:"inherit",fontWeight:600,transition:"all 0.15s"}}
+                          onClick={() => {
+                            if (selected) {
+                              setExtras(extras.split("、").filter(s => s.trim() !== q.text).join("、").trim());
+                            } else {
+                              setExtras(extras.trim() ? extras.trim().replace(/、$/,"") + "、" + q.text : q.text);
+                            }
+                          }}>
+                          {q.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })()}

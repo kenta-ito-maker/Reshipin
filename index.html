@@ -973,6 +973,8 @@ function App() {
   const [pwaBanner, setPwaBanner] = useState(false);
   const [points, setPoints] = useState(0);
   const [pointToast, setPointToast] = useState(null); // {amount, reason}
+  const [shareMenu, setShareMenu] = useState(null); // "menu" | "made" | null
+  const [shareLoading, setShareLoading] = useState(false);
   const [transferModal, setTransferModal] = useState(null); // "issue" | "redeem" | null
   const [issuedCode, setIssuedCode] = useState(null);
   const [issuingCode, setIssuingCode] = useState(false);
@@ -1005,6 +1007,67 @@ function App() {
       setPoints(newBalance);
       setPointToast({amount, reason, rankUp: prevRank.name !== newRank.name ? newRank : null});
       setTimeout(() => setPointToast(null), 3500);
+    }
+  };
+
+  // ─── シェア機能 ──────────────────────────────────────────────────
+  const getShareText = (type) => {
+    const dishNames = recipes.map(r => {
+      const m = r.match(/【(?:献立セット)?[①②③]\s*(.+?)】/) || r.match(/🥘\s*主菜\s*[:：]\s*(.+)/);
+      return m ? m[1].trim() : "";
+    }).filter(Boolean).map(n => `・${n}`).join("\n");
+    if (type === "made") {
+      return `今日、レピの献立で作ったよ！🍳\n${dishNames}\n#レピごはん #作ったよ https://recip.in`;
+    }
+    return `今日のレピ献立🍳\n${dishNames}\n#レピごはん https://recip.in`;
+  };
+
+  const doShare = async (target, type) => {
+    const text = getShareText(type);
+    setShareLoading(true);
+    // シェア画面を開く
+    if (target === "x") {
+      window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
+    } else if (target === "instagram") {
+      navigator.clipboard?.writeText(text);
+      setPointToast({amount: 0, reason: "テキストをコピーしました。Instagramに貼り付けてね"});
+      setTimeout(() => setPointToast(null), 3000);
+      setTimeout(() => { try { window.open("instagram://", "_blank"); } catch {} }, 500);
+    } else if (target === "line") {
+      window.open(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent("https://recip.in")}&text=${encodeURIComponent(text)}`, "_blank");
+    }
+    // ポイント加算
+    try {
+      const uid = getUserId();
+      const r = await sbFetch("/api/share", {
+        method: "POST",
+        body: JSON.stringify({ user_id: uid, share_target: target, share_type: type }),
+      });
+      if (r.awarded) {
+        setPoints(r.balance);
+        setPointToast({amount: r.points, reason: `${target === "x" ? "X" : target === "instagram" ? "Instagram" : "LINE"}シェアありがとう！`});
+        setTimeout(() => setPointToast(null), 3500);
+      } else if (r.reason === "already_claimed_today") {
+        setPointToast({amount: 0, reason: "今日はもうポイントゲット済みだよ"});
+        setTimeout(() => setPointToast(null), 3000);
+      }
+    } catch {}
+    setShareLoading(false);
+    setShareMenu(null);
+  };
+
+  const doNativeShare = async () => {
+    const text = getShareText("made");
+    if (navigator.share) {
+      try { await navigator.share({ text, url: "https://recip.in" }); } catch {}
+      // ネイティブシェア後もポイント付与（X扱い）
+      try {
+        const uid = getUserId();
+        const r = await sbFetch("/api/share", { method: "POST", body: JSON.stringify({ user_id: uid, share_target: "x", share_type: "made" }) });
+        if (r.awarded) { setPoints(r.balance); setPointToast({amount: r.points, reason: "シェアありがとう！"}); setTimeout(() => setPointToast(null), 3500); }
+      } catch {}
+    } else {
+      setShareMenu("made");
     }
   };
 
@@ -1332,12 +1395,16 @@ function App() {
 
   return (
     <div style={S.root}>
-      <div style={S.appHeader}>
+      <div style={{...S.appHeader,justifyContent:"space-between"}}>
+        <div style={{width:60}}/>
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
           <div style={S.logoSmall}>🍳 レピ</div>
           <div style={{fontSize:9,color:"#b89f87",letterSpacing:"0.3em",fontWeight:700}}>REPI</div>
           <div style={{fontSize:10,color:"#c0ac98",letterSpacing:"0.08em",marginTop:1}}>AIおまかせごはん</div>
         </div>
+        <button onClick={() => setScreen("pointHistory")} style={{width:60,background:"#fdecd8",border:"1px solid #f0d8b8",borderRadius:14,padding:"6px 10px",fontSize:12,fontWeight:700,color:"#d67850",cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>
+          🪙 {points}
+        </button>
       </div>
       <div style={S.appContent}>
 
@@ -1647,7 +1714,19 @@ function App() {
               );
             })()}
 
-            <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:24}}>
+            {/* シェアボタン */}
+            <div style={{display:"flex",gap:10,marginTop:20,marginBottom:4}}>
+              <button onClick={() => setShareMenu("menu")}
+                style={{flex:1,background:"#e8f4fd",border:"1.5px solid #b8d8f0",borderRadius:16,padding:"14px 12px",fontSize:13,fontWeight:700,color:"#3a7ab5",cursor:"pointer",fontFamily:"inherit"}}>
+                📢 シェアする
+              </button>
+              <button onClick={doNativeShare}
+                style={{flex:1,background:"#edf7eb",border:"1.5px solid #b0d8a0",borderRadius:16,padding:"14px 12px",fontSize:13,fontWeight:700,color:"#5a8a50",cursor:"pointer",fontFamily:"inherit"}}>
+                🍳 作ったよ！
+              </button>
+            </div>
+
+            <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:10}}>
               <div style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:18,padding:"14px 16px"}}>
                 <div style={{fontSize:12,fontWeight:700,color:"#8a7563",marginBottom:8}}>💭 こんな気分？（任意、今の条件を引き継ぎ）</div>
                 <textarea
@@ -1830,6 +1909,31 @@ function App() {
           </div>
         )}
 
+        {screen==="pointHistory" && (
+          <div className="fade-in">
+            <div style={S.backRow}>
+              <button style={S.backBtn} onClick={() => setScreen("home")}>← 戻る</button>
+              <span style={{color:"#888",fontSize:13}}>ポイント履歴</span>
+            </div>
+            <div style={{background:"linear-gradient(135deg,#fff5ea 0%,#fdecd8 100%)",border:"1.5px solid #f0d8b8",borderRadius:24,padding:"20px 22px",marginBottom:16}}>
+              <div style={{textAlign:"center"}}>
+                <div style={{fontSize:13,color:"#d67850",fontWeight:700,letterSpacing:"0.15em",marginBottom:8}}>🪙 レピ・ポイント</div>
+                <div style={{fontSize:36,fontWeight:700,color:"#5a4a3a",fontFamily:"'Kaisei Decol',serif"}}>{points}<span style={{fontSize:14,color:"#8a7563",marginLeft:4}}>pt</span></div>
+                <div style={{fontSize:12,color:"#8a7563",marginTop:4}}>{getRank(points).icon} {getRank(points).name}</div>
+              </div>
+            </div>
+            <div style={S.sectionTitle}>ポイントの貯め方</div>
+            <div style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:20,padding:"16px 20px",marginBottom:16,fontSize:12,color:"#8a7563",lineHeight:2}}>
+              🥕 食材を登録 → <b style={{color:"#d67850"}}>+1pt</b><br/>
+              🧾 レシートで登録 → <b style={{color:"#d67850"}}>+10pt</b><br/>
+              🍳 料理を作って在庫更新 → <b style={{color:"#d67850"}}>+10pt</b><br/>
+              🐦 X でシェア → <b style={{color:"#d67850"}}>+30pt</b>（1日1回）<br/>
+              📷 Instagramでシェア → <b style={{color:"#d67850"}}>+30pt</b>（1日1回）<br/>
+              💬 LINEでシェア → <b style={{color:"#d67850"}}>+10pt</b>（1日3回）
+            </div>
+          </div>
+        )}
+
         {screen==="settings" && (
           <div className="fade-in">
             <div style={S.sectionTitle}>⚙️ 設定</div>
@@ -1988,9 +2092,45 @@ function App() {
           </div>
         </div>
       )}
+      {shareMenu && (
+        <div style={{position:"fixed",inset:0,background:"rgba(90,74,58,0.4)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:200}} onClick={() => setShareMenu(null)}>
+          <div style={{width:"100%",maxWidth:480,background:"#fffcf7",borderRadius:"28px 28px 0 0",padding:"24px 22px 40px"}} onClick={e => e.stopPropagation()}>
+            <div style={{fontSize:17,fontWeight:700,color:"#5a4a3a",marginBottom:4}}>{shareMenu==="made"?"🍳 作ったよ！をシェア":"📢 献立をシェア"}</div>
+            <div style={{fontSize:12,color:"#8a7563",marginBottom:18}}>シェアしてポイントをゲットしよう</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {[
+                {key:"x",icon:"🐦",label:"X でシェア",pts:"+30pt",color:"#1DA1F2"},
+                {key:"instagram",icon:"📷",label:"Instagramでシェア",pts:"+30pt",color:"#E1306C"},
+                {key:"line",icon:"💬",label:"LINEでシェア",pts:"+10pt",color:"#06C755"},
+              ].map(s => (
+                <button key={s.key} onClick={() => doShare(s.key, shareMenu)} disabled={shareLoading}
+                  style={{display:"flex",alignItems:"center",gap:12,background:"#fff",border:"1.5px solid #f0e0c8",borderRadius:16,padding:"14px 18px",cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s",width:"100%",textAlign:"left"}}>
+                  <span style={{fontSize:22}}>{s.icon}</span>
+                  <span style={{flex:1,fontSize:14,fontWeight:700,color:"#5a4a3a"}}>{s.label}</span>
+                  <span style={{fontSize:12,fontWeight:700,color:"#d67850",background:"#fdecd8",borderRadius:10,padding:"3px 10px"}}>{s.pts}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{marginTop:16,borderTop:"1px dashed #f0e0c8",paddingTop:14}}>
+              <div style={{fontSize:12,color:"#8a7563",marginBottom:8}}>🔍 みんなのレピごはんを見る</div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={() => window.open("https://twitter.com/search?q=%23レピごはん","_blank")}
+                  style={{flex:1,background:"#f0f8ff",border:"1px solid #d0e8f8",borderRadius:12,padding:"8px",fontSize:12,fontWeight:600,color:"#1DA1F2",cursor:"pointer",fontFamily:"inherit"}}>
+                  🐦 X で見る
+                </button>
+                <button onClick={() => window.open("https://www.instagram.com/explore/tags/レピごはん/","_blank")}
+                  style={{flex:1,background:"#fff0f5",border:"1px solid #f0d0e0",borderRadius:12,padding:"8px",fontSize:12,fontWeight:600,color:"#E1306C",cursor:"pointer",fontFamily:"inherit"}}>
+                  📷 IG で見る
+                </button>
+              </div>
+            </div>
+            <button onClick={() => setShareMenu(null)} style={{width:"100%",background:"none",border:"none",color:"#888",fontSize:13,padding:"16px 0 0",cursor:"pointer",fontFamily:"inherit"}}>閉じる</button>
+          </div>
+        </div>
+      )}
       {pointToast && (
         <div className="bounce-in" style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",zIndex:300,background:"#fffcf7",border:"2px solid #f0d8b8",borderRadius:22,padding:"14px 22px",boxShadow:"0 6px 24px rgba(214,120,80,0.25)",display:"flex",flexDirection:"column",alignItems:"center",gap:4,maxWidth:"calc(100% - 40px)"}}>
-          <div style={{fontSize:14,fontWeight:700,color:"#d67850"}}>✨ +{pointToast.amount} レピP 貯まったよ！</div>
+          <div style={{fontSize:14,fontWeight:700,color:"#d67850"}}>{pointToast.amount > 0 ? `🎉 +${pointToast.amount}pt ゲット！` : "📋"}</div>
           <div style={{fontSize:11,color:"#8a7563"}}>{pointToast.reason}</div>
           {pointToast.rankUp && (
             <div style={{fontSize:12,fontWeight:700,color:"#b8860b",marginTop:6,background:"#fff5ea",padding:"5px 14px",borderRadius:20,border:"1.5px solid #f0d8b8"}}>

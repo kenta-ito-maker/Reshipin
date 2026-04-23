@@ -987,6 +987,101 @@ const RecipeCard = ({ title, badge, time, calories, content, onCooked, onSave, s
   );
 };
 
+const AdminDashboard = ({ onBack }) => {
+  const [dashData, setDashData] = React.useState(null);
+  const [dashPeriod, setDashPeriod] = React.useState("30");
+  const [dashLoading, setDashLoading] = React.useState(false);
+  React.useEffect(() => {
+    setDashLoading(true);
+    sbFetch(`/api/admin/dashboard?user_id=${getUserId()}&period=${dashPeriod}`)
+      .then(d => { if(!d.error) setDashData(d); })
+      .catch(()=>{})
+      .finally(() => setDashLoading(false));
+  }, [dashPeriod]);
+  const Stat = ({label, value}) => (
+    <div style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:14,padding:"12px 14px",flex:1,minWidth:80}}>
+      <div style={{fontSize:22,fontWeight:700,color:"#d67850",fontFamily:"'Kaisei Decol',serif"}}>{value}</div>
+      <div style={{fontSize:11,color:"#8a7563",marginTop:2}}>{label}</div>
+    </div>
+  );
+  return (
+    <div className="fade-in">
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+        <button style={{background:"none",border:"none",color:"#d67850",fontSize:13,cursor:"pointer",fontFamily:"inherit",fontWeight:600}} onClick={onBack}>← 戻る</button>
+        <span style={{color:"#888",fontSize:13}}>📊 運営ダッシュボード</span>
+      </div>
+      <div style={{display:"flex",gap:6,marginBottom:16}}>
+        {[{k:"1",l:"今日"},{k:"7",l:"7日間"},{k:"30",l:"30日間"},{k:"all",l:"全期間"}].map(p => (
+          <button key={p.k} onClick={() => setDashPeriod(p.k)}
+            style={{flex:1,background:dashPeriod===p.k?"#d67850":"#fdecd8",color:dashPeriod===p.k?"#fff":"#8a7563",border:"none",borderRadius:10,padding:"7px 4px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+            {p.l}
+          </button>
+        ))}
+      </div>
+      {dashLoading && <div style={{textAlign:"center",padding:20,color:"#d67850"}}><span className="egg-wobble" style={{fontSize:20}}>🥚</span> 読み込み中…</div>}
+      {dashData && <>
+        <div style={{fontSize:13,fontWeight:700,color:"#5a4a3a",marginBottom:8}}>👤 ユーザー</div>
+        <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+          <Stat label="総ユーザー" value={dashData.users.total}/>
+          <Stat label="DAU" value={dashData.users.dau}/>
+          <Stat label="MAU" value={dashData.users.mau}/>
+        </div>
+        <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+          <Stat label="新規(7日)" value={dashData.users.new_7days}/>
+          <Stat label="新規(30日)" value={dashData.users.new_30days}/>
+        </div>
+        <div style={{fontSize:13,fontWeight:700,color:"#5a4a3a",marginBottom:8}}>📈 アクティビティ</div>
+        <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+          <Stat label="献立生成" value={dashData.activity.analyze_count}/>
+          <Stat label="料理記録" value={dashData.activity.cooked_count}/>
+          <Stat label="シェア" value={dashData.activity.share_count.total}/>
+        </div>
+        <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+          <Stat label="X" value={dashData.activity.share_count.x}/>
+          <Stat label="IG" value={dashData.activity.share_count.instagram}/>
+          <Stat label="LINE" value={dashData.activity.share_count.line}/>
+        </div>
+        <div style={{fontSize:13,fontWeight:700,color:"#5a4a3a",marginBottom:8}}>🥕 人気の食材 TOP10</div>
+        <div style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:16,padding:"12px 16px",marginBottom:16}}>
+          {dashData.popular.ingredients.length === 0 ? <div style={{color:"#aaa",fontSize:12}}>データなし</div> :
+            dashData.popular.ingredients.map((ing, i) => (
+              <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:13,color:"#5a4a3a",borderBottom:i<dashData.popular.ingredients.length-1?"1px dashed #f0e0c8":"none"}}>
+                <span>{i+1}. {ing.name}</span>
+                <span style={{color:"#8a7563",fontSize:11}}>{ing.user_count}人</span>
+              </div>
+            ))
+          }
+        </div>
+        <div style={{fontSize:13,fontWeight:700,color:"#5a4a3a",marginBottom:8}}>🍳 人気レシピ TOP10</div>
+        <div style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:16,padding:"12px 16px",marginBottom:16}}>
+          {dashData.popular.recipes.length === 0 ? <div style={{color:"#aaa",fontSize:12}}>データなし</div> :
+            dashData.popular.recipes.map((r, i) => (
+              <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:13,color:"#5a4a3a",borderBottom:i<dashData.popular.recipes.length-1?"1px dashed #f0e0c8":"none"}}>
+                <span>{i+1}. {r.name}</span>
+                <span style={{color:"#8a7563",fontSize:11}}>{r.count}回</span>
+              </div>
+            ))
+          }
+        </div>
+        <div style={{fontSize:13,fontWeight:700,color:"#5a4a3a",marginBottom:8}}>🏷️ 気分チップ使用率</div>
+        <div style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:16,padding:"12px 16px",marginBottom:16}}>
+          {dashData.mood_chips.length === 0 ? <div style={{color:"#aaa",fontSize:12}}>データなし</div> :
+            dashData.mood_chips.map((c, i) => (
+              <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:i<dashData.mood_chips.length-1?"1px dashed #f0e0c8":"none"}}>
+                <span style={{fontSize:13,color:"#5a4a3a",flex:1}}>{c.name}</span>
+                <div style={{width:80,height:8,background:"#f0e0c8",borderRadius:4,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${c.percentage}%`,background:"#d67850",borderRadius:4}}/>
+                </div>
+                <span style={{fontSize:11,color:"#8a7563",minWidth:30,textAlign:"right"}}>{c.percentage}%</span>
+              </div>
+            ))
+          }
+        </div>
+      </>}
+    </div>
+  );
+};
+
 function App() {
   const load = (key, fb) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fb; } catch { return fb; } };
   const [inventory, setInvRaw] = useState([]);
@@ -1999,105 +2094,7 @@ function App() {
           </div>
         )}
 
-        {screen==="adminDashboard" && (() => {
-          const [dashData, setDashData] = React.useState(null);
-          const [dashPeriod, setDashPeriod] = React.useState("30");
-          const [dashLoading, setDashLoading] = React.useState(false);
-          React.useEffect(() => {
-            setDashLoading(true);
-            sbFetch(`/api/admin/dashboard?user_id=${getUserId()}&period=${dashPeriod}`)
-              .then(d => { if(!d.error) setDashData(d); })
-              .catch(()=>{})
-              .finally(() => setDashLoading(false));
-          }, [dashPeriod]);
-          const Stat = ({label, value, sub}) => (
-            <div style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:14,padding:"12px 14px",flex:1,minWidth:80}}>
-              <div style={{fontSize:22,fontWeight:700,color:"#d67850",fontFamily:"'Kaisei Decol',serif"}}>{value}</div>
-              <div style={{fontSize:11,color:"#8a7563",marginTop:2}}>{label}</div>
-              {sub && <div style={{fontSize:10,color:"#b89f87"}}>{sub}</div>}
-            </div>
-          );
-          return (
-            <div className="fade-in">
-              <div style={S.backRow}>
-                <button style={S.backBtn} onClick={() => setScreen("settings")}>← 戻る</button>
-                <span style={{color:"#888",fontSize:13}}>📊 運営ダッシュボード</span>
-              </div>
-              <div style={{display:"flex",gap:6,marginBottom:16}}>
-                {[{k:"1",l:"今日"},{k:"7",l:"7日間"},{k:"30",l:"30日間"},{k:"all",l:"全期間"}].map(p => (
-                  <button key={p.k} onClick={() => setDashPeriod(p.k)}
-                    style={{flex:1,background:dashPeriod===p.k?"#d67850":"#fdecd8",color:dashPeriod===p.k?"#fff":"#8a7563",border:"none",borderRadius:10,padding:"7px 4px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                    {p.l}
-                  </button>
-                ))}
-              </div>
-              {dashLoading && <div style={{textAlign:"center",padding:20,color:"#d67850"}}><span className="egg-wobble" style={{fontSize:20}}>🥚</span> 読み込み中…</div>}
-              {dashData && <>
-                <div style={{fontSize:13,fontWeight:700,color:"#5a4a3a",marginBottom:8}}>👤 ユーザー</div>
-                <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-                  <Stat label="総ユーザー" value={dashData.users.total}/>
-                  <Stat label="DAU" value={dashData.users.dau}/>
-                  <Stat label="MAU" value={dashData.users.mau}/>
-                </div>
-                <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-                  <Stat label="新規(7日)" value={dashData.users.new_7days}/>
-                  <Stat label="新規(30日)" value={dashData.users.new_30days}/>
-                </div>
-
-                <div style={{fontSize:13,fontWeight:700,color:"#5a4a3a",marginBottom:8}}>📈 アクティビティ</div>
-                <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-                  <Stat label="献立生成" value={dashData.activity.analyze_count}/>
-                  <Stat label="料理記録" value={dashData.activity.cooked_count}/>
-                  <Stat label="シェア" value={dashData.activity.share_count.total}/>
-                </div>
-                <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-                  <Stat label="X" value={dashData.activity.share_count.x}/>
-                  <Stat label="IG" value={dashData.activity.share_count.instagram}/>
-                  <Stat label="LINE" value={dashData.activity.share_count.line}/>
-                </div>
-
-                <div style={{fontSize:13,fontWeight:700,color:"#5a4a3a",marginBottom:8}}>🥕 人気の食材 TOP10</div>
-                <div style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:16,padding:"12px 16px",marginBottom:16}}>
-                  {dashData.popular.ingredients.length === 0 ? <div style={{color:"#aaa",fontSize:12}}>データなし</div> :
-                    dashData.popular.ingredients.map((ing, i) => (
-                      <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:13,color:"#5a4a3a",borderBottom:i<dashData.popular.ingredients.length-1?"1px dashed #f0e0c8":"none"}}>
-                        <span>{i+1}. {ing.name}</span>
-                        <span style={{color:"#8a7563",fontSize:11}}>{ing.user_count}人</span>
-                      </div>
-                    ))
-                  }
-                </div>
-
-                <div style={{fontSize:13,fontWeight:700,color:"#5a4a3a",marginBottom:8}}>🍳 人気レシピ TOP10</div>
-                <div style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:16,padding:"12px 16px",marginBottom:16}}>
-                  {dashData.popular.recipes.length === 0 ? <div style={{color:"#aaa",fontSize:12}}>データなし</div> :
-                    dashData.popular.recipes.map((r, i) => (
-                      <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:13,color:"#5a4a3a",borderBottom:i<dashData.popular.recipes.length-1?"1px dashed #f0e0c8":"none"}}>
-                        <span>{i+1}. {r.name}</span>
-                        <span style={{color:"#8a7563",fontSize:11}}>{r.count}回</span>
-                      </div>
-                    ))
-                  }
-                </div>
-
-                <div style={{fontSize:13,fontWeight:700,color:"#5a4a3a",marginBottom:8}}>🏷️ 気分チップ使用率</div>
-                <div style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:16,padding:"12px 16px",marginBottom:16}}>
-                  {dashData.mood_chips.length === 0 ? <div style={{color:"#aaa",fontSize:12}}>データなし</div> :
-                    dashData.mood_chips.map((c, i) => (
-                      <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:i<dashData.mood_chips.length-1?"1px dashed #f0e0c8":"none"}}>
-                        <span style={{fontSize:13,color:"#5a4a3a",flex:1}}>{c.name}</span>
-                        <div style={{width:80,height:8,background:"#f0e0c8",borderRadius:4,overflow:"hidden"}}>
-                          <div style={{height:"100%",width:`${c.percentage}%`,background:"#d67850",borderRadius:4}}/>
-                        </div>
-                        <span style={{fontSize:11,color:"#8a7563",minWidth:30,textAlign:"right"}}>{c.percentage}%</span>
-                      </div>
-                    ))
-                  }
-                </div>
-              </>}
-            </div>
-          );
-        })()}
+        {screen==="adminDashboard" && <AdminDashboard onBack={() => setScreen("settings")}/>}
 
         {screen==="savedRecipes" && (
           <div className="fade-in">

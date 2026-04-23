@@ -903,6 +903,7 @@ function App() {
   const [recipes, setRecipes] = useState([]); // parsed recipe blocks
   const [rerollingIdx, setRerollingIdx] = useState(null);
   const [resultLoading, setResultLoading] = useState(false);
+  const [resultComment, setResultComment] = useState("");
 
   // 献立結果の永続化
   const saveAnalysis = (r, recs, mode) => {
@@ -983,14 +984,15 @@ function App() {
     if (valid.length > 0) awardPoints(1, "食材の登録ありがとう〜");
   };
 
-  const analyze = async (mode) => {
+  const analyze = async (mode, comment) => {
     setGachaAnim(true);
     setResultLoading(true);
     setAltOpen(false);
+    const allExtras = [extras, comment].filter(Boolean).join("、");
     try {
       let sysPrompt, content;
       if (mode === "free") {
-        sysPrompt = PROMPT_FREE(people, familyNote, extras, kondateMode);
+        sysPrompt = PROMPT_FREE(people, familyNote, allExtras, kondateMode);
         const userText = kondateMode === "set"
           ? "在庫に関係なく、新しい「主菜＋副菜＋汁物」の献立セットを3案提案してください。"
           : "在庫に関係なく、新しい1品料理を3つ提案してください。";
@@ -999,8 +1001,8 @@ function App() {
         const isFridgeOnly = mode === "fridge";
         const promptFn = kondateMode === "set" ? PROMPT_KONDATE_SET : PROMPT_KONDATE_SINGLE;
         sysPrompt = isFridgeOnly
-          ? promptFn(inventory, "※在庫にある食材だけで作れる献立を提案してください。買い物不要のものだけ。", people, familyNote, extras)
-          : promptFn(inventory, shopText || "特売・値引き情報なし", people, familyNote, extras);
+          ? promptFn(inventory, "※在庫にある食材だけで作れる献立を提案してください。買い物不要のものだけ。", people, familyNote, allExtras)
+          : promptFn(inventory, shopText || "特売・値引き情報なし", people, familyNote, allExtras);
         const userText = kondateMode === "set"
           ? (isFridgeOnly ? "在庫にある食材で作れる「主菜＋副菜＋汁物」の献立セットを3案提案してください。" : "在庫と特売情報から「主菜＋副菜＋汁物」の献立セットを3案提案してください。")
           : (isFridgeOnly ? "在庫にある食材だけで1品料理を3つ提案してください。" : "在庫と特売情報から1品料理を3つ提案してください。");
@@ -1033,15 +1035,16 @@ function App() {
       const isSet = kondateMode === "set";
       const numLabel = ["①","②","③"][idx] || "①";
 
+      const allExtras = [extras, resultComment].filter(Boolean).join("、");
       let baseSys;
       if (gachaMode === "free") {
-        baseSys = PROMPT_FREE(people, familyNote, extras, kondateMode);
+        baseSys = PROMPT_FREE(people, familyNote, allExtras, kondateMode);
       } else {
         const isFridgeOnly = gachaMode === "fridge";
         const promptFn = isSet ? PROMPT_KONDATE_SET : PROMPT_KONDATE_SINGLE;
         baseSys = isFridgeOnly
-          ? promptFn(inventory, "※在庫にある食材だけで作れる献立を提案してください。買い物不要のものだけ。", people, familyNote, extras)
-          : promptFn(inventory, shopText || "特売・値引き情報なし", people, familyNote, extras);
+          ? promptFn(inventory, "※在庫にある食材だけで作れる献立を提案してください。買い物不要のものだけ。", people, familyNote, allExtras)
+          : promptFn(inventory, shopText || "特売・値引き情報なし", people, familyNote, allExtras);
       }
       const avoidList = existingNames.join("、");
       const sysPrompt = `${baseSys}\n\n重要：以下の料理は既に提案済みです。これらと被らない全く別の案を1つだけ提案してください。\n提案済み：${avoidList}`;
@@ -1391,11 +1394,20 @@ function App() {
             })()}
 
             <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:24}}>
+              <div style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:18,padding:"14px 16px"}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#8a7563",marginBottom:8}}>💬 こんな感じに変えたい（任意）</div>
+                <textarea
+                  style={{...S.warmTextarea,marginBottom:0,fontSize:13,padding:"10px 14px",minHeight:40}}
+                  placeholder={"「あっさり系で」「和食多めで」「子ども向け」など"}
+                  value={resultComment}
+                  onChange={e => setResultComment(e.target.value)}
+                  rows={2}/>
+              </div>
               <button
                 style={S.rerollKeepBtn}
                 className="reroll-keep-btn"
                 disabled={resultLoading}
-                onClick={() => { setResult(null); setRecipes([]); analyze(gachaMode); }}>
+                onClick={() => { setResult(null); setRecipes([]); analyze(gachaMode, resultComment); }}>
                 {resultLoading ? "🥚 もう一度引いています…" : "🔄 同じ条件で違う候補を見る"}
               </button>
               <button

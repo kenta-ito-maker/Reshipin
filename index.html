@@ -915,14 +915,20 @@ const ParsedRecipe = ({ content }) => {
   );
 };
 
-const RecipeCard = ({ title, badge, time, calories, content, onCooked, onReroll, rerolling }) => {
+const RecipeCard = ({ title, badge, time, calories, content, onCooked, onReroll, rerolling, onSave, saved, onCook }) => {
   const [open, setOpen] = React.useState(false);
   return (
     <div style={{background:"#fffcf7",borderRadius:24,boxShadow:"0 2px 14px rgba(160,120,80,0.08)",border:"1.5px solid #f0e0c8",marginBottom:14,overflow:"hidden"}}>
       <div style={{padding:"18px 20px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}} onClick={() => setOpen(o => !o)}>
         <div style={{flex:1}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
             <div style={{fontSize:16,fontWeight:700,color:"#5a4a3a",fontFamily:"'Kaisei Decol',serif",flex:1}}>{title}</div>
+            {onSave && (
+              <button onClick={(e) => { e.stopPropagation(); onSave(); }}
+                style={{background:"none",border:"1px solid #e8d8c0",borderRadius:10,width:32,height:32,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                {saved ? "🔖" : "📑"}
+              </button>
+            )}
             {onReroll && (
               <button
                 onClick={(e) => { e.stopPropagation(); onReroll(); }}
@@ -943,11 +949,11 @@ const RecipeCard = ({ title, badge, time, calories, content, onCooked, onReroll,
       {open && (
         <div style={{padding:"18px 20px 20px",borderTop:"1.5px dashed #f0e0c8"}}>
           <ParsedRecipe content={content}/>
-          {onCooked && (
+          {onCook && (
             <button
-              onClick={(e) => { e.stopPropagation(); onCooked(); }}
-              style={{marginTop:18,background:"#78aa6e",color:"#fff",border:"none",borderRadius:14,padding:"13px 0",fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:"pointer",width:"100%",boxShadow:"0 3px 10px rgba(120,170,110,0.25)"}}>
-              🍳 これ作った！（在庫を減らす）
+              onClick={(e) => { e.stopPropagation(); onCook(); }}
+              style={{marginTop:18,background:"#d67850",color:"#fff",border:"none",borderRadius:14,padding:"13px 0",fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:"pointer",width:"100%",boxShadow:"0 3px 10px rgba(214,120,80,0.25)"}}>
+              🍳 これを作る！
             </button>
           )}
         </div>
@@ -971,6 +977,10 @@ function App() {
   const setSoundOn = v => { setSoundOnRaw(v); localStorage.setItem("repi_sound_enabled", v ? "true" : "false"); };
   const [pwaModal, setPwaModal] = useState(false);
   const [pwaBanner, setPwaBanner] = useState(false);
+  const [savedRecipes, setSavedRecipes] = useState([]);
+  const [cookedLogs, setCookedLogs] = useState([]);
+  const [cookConfirm, setCookConfirm] = useState(null); // {title, content, idx}
+  const [cookingInProgress, setCookingInProgress] = useState(false);
   const [points, setPoints] = useState(0);
   const [pointToast, setPointToast] = useState(null); // {amount, reason}
   const [shareMenu, setShareMenu] = useState(null); // "menu" | "made" | null
@@ -990,6 +1000,8 @@ function App() {
       setScreen(hasResult ? "result" : "home");
     });
     loadPoints().then(setPoints);
+    // Load saved recipes
+    sbFetch(`/api/recipes?user_id=${getUserId()}`).then(d => { if(Array.isArray(d)) setSavedRecipes(d); }).catch(()=>{});
     // PWA banner
     const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
     if (!isStandalone && !localStorage.getItem("repi_pwa_banner_dismissed")) setPwaBanner(true);
@@ -1069,6 +1081,70 @@ function App() {
     } else {
       setShareMenu("made");
     }
+  };
+
+  // ─── レシピ保存 ─────────────────────────────────────────────────
+  const getRecipeName = (content) => {
+    const m = content.match(/【(?:献立セット)?[①②③]\s*(.+?)】/) || content.match(/🥘\s*主菜\s*[:：]\s*(.+)/);
+    return m ? m[1].trim() : "レシピ";
+  };
+  const isRecipeSaved = (content) => savedRecipes.some(r => r.recipe_name === getRecipeName(content));
+  const toggleSaveRecipe = async (content) => {
+    const name = getRecipeName(content);
+    const existing = savedRecipes.find(r => r.recipe_name === name);
+    if (existing) {
+      await sbFetch(`/api/recipes?id=${existing.id}`, {method:"DELETE"});
+      setSavedRecipes(prev => prev.filter(r => r.id !== existing.id));
+    } else {
+      const uid = getUserId();
+      const data = await sbFetch("/api/recipes", {method:"POST", body: JSON.stringify({user_id: uid, recipe_name: name, recipe_data: {content}})});
+      if (Array.isArray(data) && data[0]) setSavedRecipes(prev => [data[0], ...prev]);
+    }
+  };
+
+  // ─── これを作る ────────────────────────────────────────────────
+  const handleCook = async (title, content) => {
+    setCookConfirm({title, content});
+  };
+  const confirmCook = async () => {
+    if (!cookConfirm || cookingInProgress) return;
+    setCookingInProgress(true);
+    const {title, content} = cookConfirm;
+    try {
+      // AI に消費食材を推定してもらう
+      const raw = await callClaude(PROMPT_CONSUME(content, inventory, people), [{role:"user",content:[{type:"text",text:"使用食材を予測してください。"}]}]);
+      const consumed = JSON.parse(raw.replace(/```json|```/g,"").trim());
+      const consumedArr = Array.isArray(consumed) ? consumed : [];
+      // 在庫を更新
+      for (const it of consumedArr) {
+        if (it.remain === "全部使った") {
+          await deleteItem(it.id);
+        } else if (it.remain === "少し残った" || it.remain === "半分残った") {
+          const inv = inventory.find(i => String(i.id) === String(it.id));
+          if (inv?.quantity && inv.quantity > 1) {
+            await updateItemDb(it.id, {quantity: Math.max(0, inv.quantity - 1)});
+          }
+        }
+      }
+      // cooked_logs に記録
+      const uid = getUserId();
+      await sbFetch("/api/cooked", {method:"POST", body: JSON.stringify({user_id: uid, recipe_name: title, recipe_data: {content}, ingredients_consumed: consumedArr})});
+      // 在庫リロード
+      const freshInv = await loadInventory();
+      setInvRaw(freshInv);
+      // ポイント加算
+      awardPoints(10, "お料理おつかれさま！");
+      // 初回だけ注意書き
+      if (!localStorage.getItem("repi_cook_notice_shown")) {
+        localStorage.setItem("repi_cook_notice_shown", "1");
+        setTimeout(() => { setPointToast({amount:0, reason:"在庫の消費は推定です。実際と違う場合は在庫画面で調整してね"}); setTimeout(()=>setPointToast(null),4000); }, 4000);
+      }
+    } catch(e) {
+      setPointToast({amount:0, reason:"消費予測に失敗しました。在庫画面で手動調整してね"});
+      setTimeout(()=>setPointToast(null),3000);
+    }
+    setCookingInProgress(false);
+    setCookConfirm(null);
   };
 
   const handleIssueCode = async () => {
@@ -1676,14 +1752,16 @@ function App() {
                     if (appMode==="meal_prep" || idx === 0) {
                       return (
                         <RecipeCard key={idx+recipe.slice(0,30)} title={title} badge={badge} time={time} calories={calories} content={recipe}
-                          onCooked={showCooked ? () => openConsume(recipe) : null}
+                          onSave={() => toggleSaveRecipe(recipe)} saved={isRecipeSaved(recipe)}
+                          onCook={appMode==="daily" ? () => handleCook(title, recipe) : null}
                           onReroll={() => rerollSingle(idx)} rerolling={rerollingIdx===idx}/>
                       );
                     }
                     if (!altOpen) return null;
                     return (
                       <RecipeCard key={idx+recipe.slice(0,30)} title={title} badge={badge} time={time} calories={calories} content={recipe}
-                        onCooked={showCooked ? () => openConsume(recipe) : null}
+                        onSave={() => toggleSaveRecipe(recipe)} saved={isRecipeSaved(recipe)}
+                        onCook={appMode==="daily" ? () => handleCook(title, recipe) : null}
                         onReroll={() => rerollSingle(idx)} rerolling={rerollingIdx===idx}/>
                     );
                   })}
@@ -1934,6 +2012,70 @@ function App() {
           </div>
         )}
 
+        {screen==="savedRecipes" && (
+          <div className="fade-in">
+            <div style={S.backRow}>
+              <button style={S.backBtn} onClick={() => setScreen("settings")}>← 戻る</button>
+              <span style={{color:"#888",fontSize:13}}>保存したレシピ</span>
+            </div>
+            {savedRecipes.length === 0 ? (
+              <div style={S.emptyState}>まだ保存したレシピがないよ〜<br/><span style={{fontSize:12}}>献立カードの📑ボタンで保存できるよ</span></div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {savedRecipes.map(r => (
+                  <div key={r.id} style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:16,padding:"14px 16px"}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                      <div style={{fontSize:14,fontWeight:700,color:"#5a4a3a"}}>{r.recipe_name}</div>
+                      <button onClick={async () => { await sbFetch(`/api/recipes?id=${r.id}`,{method:"DELETE"}); setSavedRecipes(p=>p.filter(x=>x.id!==r.id)); }}
+                        style={{background:"none",border:"none",color:"#ccc",fontSize:14,cursor:"pointer"}}>✕</button>
+                    </div>
+                    <div style={{fontSize:11,color:"#aaa",marginBottom:8}}>{new Date(r.saved_at).toLocaleDateString("ja-JP")} 保存</div>
+                    {r.recipe_data?.content && <ParsedRecipe content={r.recipe_data.content}/>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {screen==="cookedHistory" && (() => {
+          const loadLogs = async () => { const d = await sbFetch(`/api/cooked?user_id=${getUserId()}`); if(Array.isArray(d)) setCookedLogs(d); };
+          if (cookedLogs.length === 0) loadLogs();
+          // 日付グルーピング
+          const grouped = {};
+          cookedLogs.forEach(l => {
+            const day = new Date(l.cooked_at).toLocaleDateString("ja-JP",{year:"numeric",month:"long",day:"numeric",weekday:"short"});
+            if (!grouped[day]) grouped[day] = [];
+            grouped[day].push(l);
+          });
+          return (
+            <div className="fade-in">
+              <div style={S.backRow}>
+                <button style={S.backBtn} onClick={() => setScreen("settings")}>← 戻る</button>
+                <span style={{color:"#888",fontSize:13}}>作った料理の履歴</span>
+              </div>
+              {cookedLogs.length === 0 ? (
+                <div style={S.emptyState}>まだ料理の記録がないよ〜<br/><span style={{fontSize:12}}>「🍳 これを作る！」で記録しよう</span></div>
+              ) : Object.entries(grouped).map(([day, logs]) => (
+                <div key={day} style={{marginBottom:16}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"#8a7563",marginBottom:8}}>{day}</div>
+                  {logs.map(l => (
+                    <div key={l.id} style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:14,padding:"12px 16px",marginBottom:8}}>
+                      <div style={{fontSize:14,fontWeight:700,color:"#5a4a3a"}}>🍳 {l.recipe_name}</div>
+                      {l.recipe_data?.content && (
+                        <details style={{marginTop:8}}>
+                          <summary style={{fontSize:12,color:"#d67850",cursor:"pointer",fontWeight:600}}>レシピを見る</summary>
+                          <div style={{marginTop:8}}><ParsedRecipe content={l.recipe_data.content}/></div>
+                        </details>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
         {screen==="settings" && (
           <div className="fade-in">
             <div style={S.sectionTitle}>⚙️ 設定</div>
@@ -1987,6 +2129,19 @@ function App() {
                   📥 コードを入力
                 </button>
               </div>
+            </div>
+            <div style={{display:"flex",gap:10,marginBottom:14}}>
+              <button onClick={() => setScreen("savedRecipes")}
+                style={{flex:1,background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:16,padding:"16px 12px",cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>
+                <div style={{fontSize:22,marginBottom:4}}>📚</div>
+                <div style={{fontSize:12,fontWeight:700,color:"#5a4a3a"}}>保存レシピ</div>
+                <div style={{fontSize:11,color:"#b89f87"}}>{savedRecipes.length}件</div>
+              </button>
+              <button onClick={() => { setCookedLogs([]); setScreen("cookedHistory"); }}
+                style={{flex:1,background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:16,padding:"16px 12px",cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>
+                <div style={{fontSize:22,marginBottom:4}}>📅</div>
+                <div style={{fontSize:12,fontWeight:700,color:"#5a4a3a"}}>作った履歴</div>
+              </button>
             </div>
             <div style={S.settingCard}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -2089,6 +2244,25 @@ function App() {
                 <button style={S.skipLink} onClick={() => setConsumeModal(null)}>キャンセル</button>
               </>
             )}
+          </div>
+        </div>
+      )}
+      {cookConfirm && (
+        <div style={{position:"fixed",inset:0,background:"rgba(90,74,58,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:20}} onClick={() => !cookingInProgress && setCookConfirm(null)}>
+          <div style={{width:"100%",maxWidth:400,background:"#fffcf7",borderRadius:24,padding:"24px 22px"}} onClick={e => e.stopPropagation()}>
+            <div style={{fontSize:17,fontWeight:700,color:"#5a4a3a",marginBottom:8}}>🍳 これを作りますか？</div>
+            <div style={{fontSize:14,color:"#5a4a3a",marginBottom:4,fontWeight:600}}>「{cookConfirm.title}」</div>
+            <div style={{fontSize:12,color:"#8a7563",marginBottom:18,lineHeight:1.6}}>作ると在庫が自動で更新されます（推定）。+10ptゲット！</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={() => setCookConfirm(null)} disabled={cookingInProgress}
+                style={{flex:1,background:"#f5f0ea",border:"none",borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:700,color:"#8a7563",cursor:"pointer",fontFamily:"inherit"}}>
+                キャンセル
+              </button>
+              <button onClick={confirmCook} disabled={cookingInProgress}
+                style={{flex:1,background:"#d67850",border:"none",borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer",fontFamily:"inherit",opacity:cookingInProgress?0.6:1}}>
+                {cookingInProgress ? <span><span className="egg-wobble">🥚</span> 調理中…</span> : "🍳 作る！"}
+              </button>
+            </div>
           </div>
         </div>
       )}

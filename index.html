@@ -1163,21 +1163,26 @@ function App() {
 
   // ─── シェア機能 ──────────────────────────────────────────────────
   const [shareTargetTitle, setShareTargetTitle] = useState("");
-  const getShareText = (hasPhoto) => {
+  const [shareTargetContent, setShareTargetContent] = useState("");
+  const getShareText = () => {
     if (shareTargetTitle) {
-      return `今日これ作るよ🍳\n「${shareTargetTitle}」\n\n#レピごはん\nhttps://recip.in`;
+      // レシピ内容からコメントを抽出
+      let comment = "";
+      if (shareTargetContent) {
+        const m = shareTargetContent.match(/💬\s*(.+)/);
+        if (m) comment = m[1].trim();
+      }
+      return `🍳 「${shareTargetTitle}」作った！\n${comment ? "\n" + comment + "\n" : ""}\nAI献立アプリ「レピ」で提案してもらいました\n#レピごはん\nhttps://recip.in`;
     }
     const dishNames = recipes.map(r => {
       const m = r.match(/【(?:献立セット)?[①②③]\s*(.+?)】/) || r.match(/🥘\s*主菜\s*[:：]\s*(.+)/);
       return m ? m[1].trim() : "";
     }).filter(Boolean).map(n => `・${n}`).join("\n");
-    return hasPhoto
-      ? `今日作ったよ🍳\n${dishNames}\n#レピごはん https://recip.in`
-      : `AIで今日の献立決めた🍳\n${dishNames}\n#レピごはん https://recip.in`;
+    return `🍳 今日のレピ献立\n${dishNames}\n\nAI献立アプリ「レピ」で提案してもらいました\n#レピごはん\nhttps://recip.in`;
   };
 
   const doShare = async (target) => {
-    const text = getShareText(!!sharePhoto);
+    const text = getShareText();
     const type = sharePhoto ? "made" : "menu";
     setShareLoading(true);
     // シェア画面を開く
@@ -1208,7 +1213,7 @@ function App() {
       }
     } catch {}
     setShareLoading(false);
-    setShareMenu(false); setShareTargetTitle("");
+    setShareMenu(false); setShareTargetTitle(""); setShareTargetContent("");
   };
 
   const sharePhotoRef = useRef();
@@ -1924,7 +1929,7 @@ function App() {
                         <RecipeCard key={idx+recipe.slice(0,30)} title={title} badge={badge} time={time} calories={calories} content={recipe} flyerBadge={flyerBadge}
                           onSave={() => toggleSaveRecipe(recipe)} saved={isRecipeSaved(recipe)}
                           onCook={appMode==="daily" ? () => handleCook(title, recipe) : null}
-                          onShare={() => { setShareTargetTitle(title); setSharePhoto(null); setShareMenu(true); }}
+                          onShare={() => { setShareTargetTitle(title); setShareTargetContent(recipe); setSharePhoto(null); setShareMenu(true); }}
 />
                       );
                     }
@@ -1933,7 +1938,7 @@ function App() {
                       <RecipeCard key={idx+recipe.slice(0,30)} title={title} badge={badge} time={time} calories={calories} content={recipe} flyerBadge={flyerBadge}
                         onSave={() => toggleSaveRecipe(recipe)} saved={isRecipeSaved(recipe)}
                         onCook={appMode==="daily" ? () => handleCook(title, recipe) : null}
-                        onShare={() => { setShareTargetTitle(title); setSharePhoto(null); setShareMenu(true); }}/>
+                        onShare={() => { setShareTargetTitle(title); setShareTargetContent(recipe); setSharePhoto(null); setShareMenu(true); }}/>
                     );
                   })}
                   {appMode!=="meal_prep" && recipes.length > 1 && (
@@ -2496,7 +2501,7 @@ function App() {
                 style={{flex:1,background:isRecipeSaved(feedbackModal.content||"")?"#fdecd8":"#fff",border:`1.5px solid ${isRecipeSaved(feedbackModal.content||"")?"#d67850":"#f0e0c8"}`,borderRadius:12,padding:"10px 8px",fontSize:12,fontWeight:700,color:isRecipeSaved(feedbackModal.content||"")?"#d67850":"#8a7563",cursor:"pointer",fontFamily:"inherit"}}>
                 {isRecipeSaved(feedbackModal.content||"") ? "✓ 保存済み" : "💾 レシピを保存"}
               </button>
-              <button onClick={() => { setShareTargetTitle(feedbackModal.title); setSharePhoto(null); setShareMenu(true); }}
+              <button onClick={() => { setShareTargetTitle(feedbackModal.title); setShareTargetContent(feedbackModal.content||""); setSharePhoto(null); setShareMenu(true); }}
                 style={{flex:1,background:"#e8f4fd",border:"1.5px solid #b8d8f0",borderRadius:12,padding:"10px 8px",fontSize:12,fontWeight:700,color:"#3a7ab5",cursor:"pointer",fontFamily:"inherit"}}>
                 📢 シェア
               </button>
@@ -2515,7 +2520,7 @@ function App() {
         </div>
       )}
       {shareMenu && (
-        <div style={{position:"fixed",inset:0,background:"rgba(90,74,58,0.4)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:200}} onClick={() => { setShareMenu(false); setShareTargetTitle(""); }}>
+        <div style={{position:"fixed",inset:0,background:"rgba(90,74,58,0.4)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:200}} onClick={() => { setShareMenu(false); setShareTargetTitle(""); setShareTargetContent(""); }}>
           <div style={{width:"100%",maxWidth:480,background:"#fffcf7",borderRadius:"28px 28px 0 0",padding:"24px 22px 40px"}} onClick={e => e.stopPropagation()}>
             <div style={{fontSize:17,fontWeight:700,color:"#5a4a3a",marginBottom:4}}>📢 {shareTargetTitle ? `「${shareTargetTitle}」をシェア` : "献立をシェア"}</div>
             <div style={{fontSize:12,color:"#8a7563",marginBottom:14}}>シェアしてポイントをゲットしよう</div>
@@ -2556,7 +2561,7 @@ function App() {
                 </button>
               </div>
             </div>
-            <button onClick={() => { setShareMenu(false); setShareTargetTitle(""); }} style={{width:"100%",background:"none",border:"none",color:"#888",fontSize:13,padding:"16px 0 0",cursor:"pointer",fontFamily:"inherit"}}>閉じる</button>
+            <button onClick={() => { setShareMenu(false); setShareTargetTitle(""); setShareTargetContent(""); }} style={{width:"100%",background:"none",border:"none",color:"#888",fontSize:13,padding:"16px 0 0",cursor:"pointer",fontFamily:"inherit"}}>閉じる</button>
           </div>
         </div>
       )}

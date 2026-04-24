@@ -970,7 +970,7 @@ const RecipeCard = ({ title, badge, time, calories, content, onCooked, onSave, s
               <button
                 onClick={(e) => { e.stopPropagation(); onCook(); }}
                 style={{flex:1,background:"#d67850",color:"#fff",border:"none",borderRadius:14,padding:"13px 0",fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:"pointer",boxShadow:"0 3px 10px rgba(214,120,80,0.25)"}}>
-                🍳 これを作る！
+                🍳 これを作った！
               </button>
             )}
             {onShare && (
@@ -1261,7 +1261,7 @@ function App() {
       // ポイント加算
       awardPoints(10, "お料理おつかれさま！");
       // フィードバックモーダル表示
-      setFeedbackModal({cookedId, title});
+      setFeedbackModal({cookedId, title, content});
       setFeedbackRating(null);
       setFeedbackComment("");
       // 初回だけ注意書き
@@ -2186,7 +2186,7 @@ function App() {
                 <span style={{color:"#888",fontSize:13}}>作った料理の履歴</span>
               </div>
               {cookedLogs.length === 0 ? (
-                <div style={S.emptyState}>まだ料理の記録がないよ〜<br/><span style={{fontSize:12}}>「🍳 これを作る！」で記録しよう</span></div>
+                <div style={S.emptyState}>まだ料理の記録がないよ〜<br/><span style={{fontSize:12}}>「🍳 これを作った！」で記録しよう</span></div>
               ) : Object.entries(grouped).map(([day, logs]) => (
                 <div key={day} style={{marginBottom:16}}>
                   <div style={{fontSize:13,fontWeight:700,color:"#8a7563",marginBottom:8}}>{day}</div>
@@ -2391,9 +2391,9 @@ function App() {
       {cookConfirm && (
         <div style={{position:"fixed",inset:0,background:"rgba(90,74,58,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:20}} onClick={() => !cookingInProgress && setCookConfirm(null)}>
           <div style={{width:"100%",maxWidth:400,background:"#fffcf7",borderRadius:24,padding:"24px 22px"}} onClick={e => e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:700,color:"#5a4a3a",marginBottom:8}}>🍳 これを作りますか？</div>
+            <div style={{fontSize:17,fontWeight:700,color:"#5a4a3a",marginBottom:8}}>🍳 これを作った？</div>
             <div style={{fontSize:14,color:"#5a4a3a",marginBottom:4,fontWeight:600}}>「{cookConfirm.title}」</div>
-            <div style={{fontSize:12,color:"#8a7563",marginBottom:18,lineHeight:1.6}}>作ると在庫が自動で更新されます（推定）。+10ptゲット！</div>
+            <div style={{fontSize:12,color:"#8a7563",marginBottom:18,lineHeight:1.6}}>在庫が自動で更新されます（推定）。+10ptゲット！</div>
             <div style={{display:"flex",gap:10}}>
               <button onClick={() => setCookConfirm(null)} disabled={cookingInProgress}
                 style={{flex:1,background:"#f5f0ea",border:"none",borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:700,color:"#8a7563",cursor:"pointer",fontFamily:"inherit"}}>
@@ -2401,7 +2401,7 @@ function App() {
               </button>
               <button onClick={confirmCook} disabled={cookingInProgress}
                 style={{flex:1,background:"#d67850",border:"none",borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer",fontFamily:"inherit",opacity:cookingInProgress?0.6:1}}>
-                {cookingInProgress ? <span><span className="egg-wobble">🥚</span> 調理中…</span> : "🍳 作る！"}
+                {cookingInProgress ? <span><span className="egg-wobble">🥚</span> 記録中…</span> : "🍳 作った！"}
               </button>
             </div>
           </div>
@@ -2427,6 +2427,16 @@ function App() {
               placeholder="コメント（任意、200文字まで）"
               rows={2}
               style={{width:"100%",background:"#fff",border:"1.5px solid #e8d8c0",borderRadius:12,color:"#5a4a3a",fontSize:13,padding:"10px 14px",fontFamily:"inherit",outline:"none",resize:"none",marginBottom:14,boxSizing:"border-box"}}/>
+            <div style={{display:"flex",gap:8,marginBottom:12}}>
+              <button onClick={() => { toggleSaveRecipe(feedbackModal.content||""); }}
+                style={{flex:1,background:isRecipeSaved(feedbackModal.content||"")?"#fdecd8":"#fff",border:`1.5px solid ${isRecipeSaved(feedbackModal.content||"")?"#d67850":"#f0e0c8"}`,borderRadius:12,padding:"10px 8px",fontSize:12,fontWeight:700,color:isRecipeSaved(feedbackModal.content||"")?"#d67850":"#8a7563",cursor:"pointer",fontFamily:"inherit"}}>
+                {isRecipeSaved(feedbackModal.content||"") ? "✓ 保存済み" : "💾 レシピを保存"}
+              </button>
+              <button onClick={() => { setShareTargetTitle(feedbackModal.title); setSharePhoto(null); setShareMenu(true); }}
+                style={{flex:1,background:"#e8f4fd",border:"1.5px solid #b8d8f0",borderRadius:12,padding:"10px 8px",fontSize:12,fontWeight:700,color:"#3a7ab5",cursor:"pointer",fontFamily:"inherit"}}>
+                📢 シェア
+              </button>
+            </div>
             <div style={{display:"flex",gap:10}}>
               <button onClick={() => setFeedbackModal(null)}
                 style={{flex:1,background:"#f5f0ea",border:"none",borderRadius:14,padding:"13px 0",fontSize:13,fontWeight:700,color:"#8a7563",cursor:"pointer",fontFamily:"inherit"}}>

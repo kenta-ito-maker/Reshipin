@@ -1096,6 +1096,7 @@ function App() {
   const [soundOn, setSoundOnRaw] = useState(() => localStorage.getItem("repi_sound_enabled") !== "false");
   const setSoundOn = v => { setSoundOnRaw(v); localStorage.setItem("repi_sound_enabled", v ? "true" : "false"); };
   const [mealTimes, setMealTimes] = useState(new Set()); // "breakfast" | "lunch" | "dinner"
+  const [volumeType, setVolumeType] = useState("simple"); // "simple" | "standard" | "hearty"
   const [pwaModal, setPwaModal] = useState(false);
   const [pwaBanner, setPwaBanner] = useState(false);
   const [savedRecipes, setSavedRecipes] = useState([]);
@@ -1463,6 +1464,11 @@ function App() {
       lunch: "昼ごはん向け（30分以内、軽め、お弁当転用可）",
       dinner: "夜ごはん向け（45分以内、メイン感、主菜＋副菜の構成可）",
     };
+    const volumeHints = {
+      simple: "1品で完結するメニュー（丼物、パスタ、炒め物、鍋、カレー等）。品数少なく調理シンプル。",
+      standard: "主菜1品＋副菜1品の構成。バランスよく栄養考慮。副菜は簡単なものに。",
+      hearty: "主菜1品＋副菜1〜2品＋汁物の定食スタイル。食べ応え重視、彩り考慮。",
+    };
     let mealTimeExtra = "";
     const selected = Array.from(mealTimes);
     if (selected.length === 0) {
@@ -1479,7 +1485,7 @@ function App() {
         mealTimeExtra += " ブランチ（朝昼兼用）1品にまとめる案も可。";
       }
     }
-    const allExtras = [mealTimeExtra, extras, comment].filter(Boolean).join("、");
+    const allExtras = [mealTimeExtra, volumeHints[volumeType]||"", extras, comment].filter(Boolean).join("、");
     // ログ記録
     const uid = getUserId();
     const chipList = extras ? extras.split("、").filter(Boolean) : [];
@@ -1759,6 +1765,22 @@ function App() {
                   })}
                 </div>
                 <div style={{fontSize:10,color:"#c0ac98",marginTop:4}}>未選択なら時刻で自動判定</div>
+              </div>
+            )}
+            {appMode==="daily" && (
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#b89f87",marginBottom:6,letterSpacing:"0.1em"}}>ボリューム</div>
+                <div style={{display:"flex",gap:8}}>
+                  {[{key:"simple",icon:"💨",label:"簡単"},{key:"standard",icon:"🍱",label:"標準"},{key:"hearty",icon:"🎊",label:"がっつり"}].map(v => {
+                    const sel = volumeType===v.key;
+                    return (
+                      <button key={v.key} onClick={() => setVolumeType(v.key)}
+                        style={{flex:1,background:sel?"#d67850":"#fdecd8",border:`1.5px solid ${sel?"#d67850":"#f0d8b8"}`,borderRadius:14,padding:"10px 4px",fontSize:13,fontWeight:700,color:sel?"#fff":"#8a7563",cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
+                        {v.icon} {v.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
             {appMode==="daily" && (() => {

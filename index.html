@@ -976,15 +976,15 @@ const RecipeCard = ({ title, badge, time, calories, content, onCooked, onSave, s
             {onShare && (
               <button
                 onClick={(e) => { e.stopPropagation(); onShare(); }}
-                style={{background:"#e8f4fd",color:"#3a7ab5",border:"none",borderRadius:14,padding:"13px 16px",fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>
-                📢
+                style={{background:"#e8f4fd",color:"#3a7ab5",border:"1px solid #d0e4f0",borderRadius:14,padding:"13px 12px",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>
+                📢 シェア
               </button>
             )}
             {onReject && (
               <button
                 onClick={(e) => { e.stopPropagation(); onReject(); }}
-                style={{background:rejected?"#f0e0c8":"#fdf0f0",color:rejected?"#b89f87":"#c0392b",border:"none",borderRadius:14,padding:"13px 16px",fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>
-                {rejected ? "↩" : "❌"}
+                style={{background:rejected?"#f0e0c8":"#fdf0f0",color:rejected?"#b89f87":"#c0392b",border:`1px solid ${rejected?"#e0d0c0":"#f0d0d0"}`,borderRadius:14,padding:"13px 12px",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>
+                {rejected ? "↩ 戻す" : "❌ なし"}
               </button>
             )}
           </div>
@@ -1235,29 +1235,39 @@ function App() {
     if (!cookConfirm || cookingInProgress) return;
     setCookingInProgress(true);
     const {title, content} = cookConfirm;
+    let consumedArr = [];
     try {
-      // AI に消費食材を推定してもらう
-      const raw = await callClaude(PROMPT_CONSUME(content, inventory, people), [{role:"user",content:[{type:"text",text:"使用食材を予測してください。"}]}]);
-      const consumed = JSON.parse(raw.replace(/```json|```/g,"").trim());
-      const consumedArr = Array.isArray(consumed) ? consumed : [];
-      // 在庫を更新
-      for (const it of consumedArr) {
-        if (it.remain === "全部使った") {
-          await deleteItem(it.id);
-        } else if (it.remain === "少し残った" || it.remain === "半分残った") {
-          const inv = inventory.find(i => String(i.id) === String(it.id));
-          if (inv?.quantity && inv.quantity > 1) {
-            await updateItemDb(it.id, {quantity: Math.max(0, inv.quantity - 1)});
-          }
+      // AI に消費食材を推定（在庫がある場合のみ）
+      if (inventory.length > 0) {
+        const raw = await callClaude(PROMPT_CONSUME(content, inventory, people), [{role:"user",content:[{type:"text",text:"使用食材を予測してください。"}]}]);
+        const consumed = JSON.parse(raw.replace(/```json|```/g,"").trim());
+        consumedArr = Array.isArray(consumed) ? consumed : [];
+        // 在庫を更新（各アイテム個別にtry-catch）
+        for (const it of consumedArr) {
+          try {
+            const inv = inventory.find(i => String(i.id) === String(it.id));
+            if (!inv) continue; // 在庫にないアイテムはスキップ
+            if (it.remain === "全部使った") {
+              await deleteItem(it.id);
+            } else if (it.remain === "少し残った" || it.remain === "半分残った") {
+              if (inv.quantity && inv.quantity > 1) {
+                await updateItemDb(it.id, {quantity: inv.quantity - 1});
+              }
+            }
+          } catch {} // 個別の在庫更新失敗はスキップ
         }
+        const freshInv = await loadInventory();
+        setInvRaw(freshInv);
       }
-      // cooked_logs に記録
+    } catch(e) {
+      // 消費予測失敗でも料理記録は続行
+      console.error("消費予測エラー:", e);
+    }
+    try {
+      // cooked_logs に記録（消費予測が失敗しても記録する）
       const uid = getUserId();
       const cookedRes = await sbFetch("/api/cooked", {method:"POST", body: JSON.stringify({user_id: uid, recipe_name: title, recipe_data: {content}, ingredients_consumed: consumedArr})});
       const cookedId = Array.isArray(cookedRes) && cookedRes[0] ? cookedRes[0].id : null;
-      // 在庫リロード
-      const freshInv = await loadInventory();
-      setInvRaw(freshInv);
       // ポイント加算
       awardPoints(10, "お料理おつかれさま！");
       // フィードバックモーダル表示
@@ -1270,7 +1280,7 @@ function App() {
         setTimeout(() => { setPointToast({amount:0, reason:"在庫の消費は推定です。実際と違う場合は在庫画面で調整してね"}); setTimeout(()=>setPointToast(null),4000); }, 4000);
       }
     } catch(e) {
-      setPointToast({amount:0, reason:"消費予測に失敗しました。在庫画面で手動調整してね"});
+      setPointToast({amount:0, reason:"記録に失敗しました"});
       setTimeout(()=>setPointToast(null),3000);
     }
     setCookingInProgress(false);
@@ -1493,7 +1503,7 @@ function App() {
           ? (isFridgeOnly ? "在庫にある食材で作れる「主菜＋副菜＋汁物」の献立セットを3案提案してください。" : "在庫と特売情報から「主菜＋副菜＋汁物」の献立セットを3案提案してください。")
           : (isFridgeOnly ? "在庫にある食材だけで1品料理を3つ提案してください。" : "在庫と特売情報から1品料理を3つ提案してください。");
         content = !isFridgeOnly && shopImages.length > 0
-          ? [...shopImages.map(img => ({type:"image",source:{type:"base64",media_type:"image/jpeg",data:img.b64}})),{type:"text",text:`チラシ写真${shopImages.length}枚。補足：${shopText||"なし"}\n\n${userText}`}]
+          ? [...shopImages.map(img => ({type:"image",source:{type:"base64",media_type:"image/jpeg",data:img.b64}})),{type:"text",text:`チラシ写真${shopImages.length}枚。このチラシに載っている特売食材を積極的に使った献立を提案してください。補足：${shopText||"なし"}\n\n${userText}`}]
           : [{type:"text",text:userText}];
       }
       const text = await callClaude(sysPrompt, [{role:"user",content}]);

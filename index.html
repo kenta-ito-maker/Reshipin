@@ -1317,8 +1317,7 @@ function App() {
   const [fridgePreview, setFridgePreview] = useState(null);
   const fridgeRef = useRef();
 
-  const [shopImage, setShopImage] = useState(null);
-  const [shopB64, setShopB64] = useState(null);
+  const [shopImages, setShopImages] = useState([]); // [{url, b64}]
   const [shopText, setShopText] = useState("");
   const [extras, setExtras] = useState("");
   const [kondateMode, setKondateModeRaw] = useState(() => load("rsp_kondate_mode", "set")); // "set" | "single"
@@ -1461,8 +1460,8 @@ function App() {
         const userText = kondateMode === "set"
           ? (isFridgeOnly ? "在庫にある食材で作れる「主菜＋副菜＋汁物」の献立セットを3案提案してください。" : "在庫と特売情報から「主菜＋副菜＋汁物」の献立セットを3案提案してください。")
           : (isFridgeOnly ? "在庫にある食材だけで1品料理を3つ提案してください。" : "在庫と特売情報から1品料理を3つ提案してください。");
-        content = !isFridgeOnly && shopB64
-          ? [{type:"image",source:{type:"base64",media_type:"image/jpeg",data:shopB64}},{type:"text",text:`チラシ写真。補足：${shopText||"なし"}\n\n${userText}`}]
+        content = !isFridgeOnly && shopImages.length > 0
+          ? [...shopImages.map(img => ({type:"image",source:{type:"base64",media_type:"image/jpeg",data:img.b64}})),{type:"text",text:`チラシ写真${shopImages.length}枚。補足：${shopText||"なし"}\n\n${userText}`}]
           : [{type:"text",text:userText}];
       }
       const text = await callClaude(sysPrompt, [{role:"user",content}]);
@@ -1642,16 +1641,28 @@ function App() {
             </div>
             <div style={S.sectionTitle}>🏷️ お得情報（あれば）</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-              <div style={{...S.uploadBox,...(shopImage?S.uploadBoxFilled:{}),minHeight:80}} onClick={() => shopRef.current.click()} className="upload-box">
-                {shopImage
-                  ? <img src={shopImage} alt="" style={{...S.uploadPreview,height:80}}/>
+              <div style={{...S.uploadBox,...(shopImages.length?S.uploadBoxFilled:{}),minHeight:80}} onClick={() => shopRef.current.click()} className="upload-box">
+                {shopImages.length > 0
+                  ? <div style={{padding:8,width:"100%"}}>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                        {shopImages.map((img,i) => (
+                          <div key={i} style={{position:"relative",width:48,height:48}}>
+                            <img src={img.url} alt="" style={{width:48,height:48,objectFit:"cover",borderRadius:8,border:"1px solid #f0e0c8"}}/>
+                            <button onClick={(ev) => { ev.stopPropagation(); setShopImages(p => p.filter((_,j) => j!==i)); }}
+                              style={{position:"absolute",top:-4,right:-4,background:"#fff",border:"1px solid #ddd",borderRadius:8,width:16,height:16,fontSize:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#c0392b"}}>✕</button>
+                          </div>
+                        ))}
+                        <div style={{width:48,height:48,border:"1.5px dashed #e8c8a8",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"#d67850"}}>+</div>
+                      </div>
+                      <div style={{fontSize:10,color:"#8a7563",marginTop:4,textAlign:"center"}}>{shopImages.length}枚</div>
+                    </div>
                   : <div style={{...S.uploadInner,padding:12,flexDirection:"column",gap:4}}>
                       <div style={{fontSize:22}}>📄</div>
-                      <div style={{color:"#e08c3a",fontSize:12,fontWeight:600}}>チラシを撮る</div>
+                      <div style={{color:"#e08c3a",fontSize:12,fontWeight:600}}>チラシを撮る（複数OK）</div>
                     </div>
                 }
               </div>
-              <input ref={shopRef} type="file" accept="image/*" style={{display:"none"}} onChange={async e => { const f=e.target.files[0]; if(!f) return; setShopImage(URL.createObjectURL(f)); setShopB64(await toBase64(f)); }}/>
+              <input ref={shopRef} type="file" accept="image/*" multiple style={{display:"none"}} onChange={async e => { const files=Array.from(e.target.files); if(!files.length) return; e.target.value=""; const imgs=await Promise.all(files.map(async f=>({url:URL.createObjectURL(f),b64:await toBase64(f)}))); setShopImages(prev=>[...prev,...imgs]); }}/>
               <div style={{...S.uploadBox,minHeight:80,cursor:"default"}}>
                 <textarea style={{...S.warmTextarea,marginBottom:0,border:"none",background:"transparent",height:"100%",fontSize:12,padding:10}} placeholder={"値引き情報を入力\n例：鶏もも半額"} value={shopText} onChange={e => setShopText(e.target.value)} rows={3}/>
               </div>
@@ -1895,7 +1906,7 @@ function App() {
               <button
                 style={S.rerollBtn}
                 className="reroll-btn"
-                onClick={() => { setResult(null); setRecipes([]); setMealPrepExtra(null); setResultComment(""); localStorage.removeItem(analysisKey()); setShopImage(null); setShopB64(null); setShopText(""); setAltOpen(false); setScreen("home"); }}>
+                onClick={() => { setResult(null); setRecipes([]); setMealPrepExtra(null); setResultComment(""); localStorage.removeItem(analysisKey()); setShopImages([]); setShopText(""); setAltOpen(false); setScreen("home"); }}>
                 ⚙️ 最初からやり直す
               </button>
             </div>

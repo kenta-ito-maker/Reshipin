@@ -2241,17 +2241,31 @@ function App() {
               ) : Object.entries(grouped).map(([day, logs]) => (
                 <div key={day} style={{marginBottom:16}}>
                   <div style={{fontSize:13,fontWeight:700,color:"#8a7563",marginBottom:8}}>{day}</div>
-                  {logs.map(l => (
-                    <div key={l.id} style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:14,padding:"12px 16px",marginBottom:8}}>
-                      <div style={{fontSize:14,fontWeight:700,color:"#5a4a3a"}}>🍳 {l.recipe_name}</div>
-                      {l.recipe_data?.content && (
-                        <details style={{marginTop:8}}>
-                          <summary style={{fontSize:12,color:"#d67850",cursor:"pointer",fontWeight:600}}>レシピを見る</summary>
-                          <div style={{marginTop:8}}><ParsedRecipe content={l.recipe_data.content}/></div>
-                        </details>
-                      )}
-                    </div>
-                  ))}
+                  {logs.map(l => {
+                    const ratingIcon = l.rating === 3 ? "😋" : l.rating === 2 ? "😐" : l.rating === 1 ? "😥" : null;
+                    const comment = l.feedback_comment || (l.recipe_data?.content?.match(/💬\s*(.+)/)?.[1]) || "";
+                    return (
+                      <div key={l.id} style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:14,padding:"12px 16px",marginBottom:8}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                          <div style={{fontSize:14,fontWeight:700,color:"#5a4a3a",flex:1}}>🍳 {l.recipe_name}</div>
+                          {ratingIcon && <span style={{fontSize:18}}>{ratingIcon}</span>}
+                        </div>
+                        {comment && <div style={{fontSize:12,color:"#8a6d3a",fontStyle:"italic",marginBottom:6,lineHeight:1.5}}>💬 {comment}</div>}
+                        <div style={{display:"flex",gap:8,marginTop:6}}>
+                          <button onClick={() => { setShareTargetTitle(l.recipe_name); setShareTargetContent(l.recipe_data?.content||""); setSharePhoto(null); setShareMenu(true); }}
+                            style={{background:"#e8f4fd",color:"#3a7ab5",border:"1px solid #d0e4f0",borderRadius:10,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                            📢 シェア
+                          </button>
+                          {l.recipe_data?.content && (
+                            <details style={{flex:1}}>
+                              <summary style={{fontSize:11,color:"#d67850",cursor:"pointer",fontWeight:600,padding:"6px 0"}}>▼ レシピを見る</summary>
+                              <div style={{marginTop:8}}><ParsedRecipe content={l.recipe_data.content}/></div>
+                            </details>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
             </div>

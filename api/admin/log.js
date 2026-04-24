@@ -15,11 +15,17 @@ export default async function handler(req, res) {
   const allowed = ["analyze_logs", "chip_logs"];
   if (!allowed.includes(table)) return res.status(400).json({ error: "invalid table" });
 
-  await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
     method: "POST",
     headers,
     body: JSON.stringify(data),
   });
+
+  if (!r.ok) {
+    const body = await r.text();
+    console.error(`[log.js] INSERT ${table} failed: ${r.status} ${body}`);
+    return res.status(r.status).json({ error: body });
+  }
 
   return res.status(200).json({ success: true });
 }

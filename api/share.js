@@ -32,25 +32,27 @@ export default async function handler(req, res) {
   const logs = await logRes.json();
   const todayCount = Array.isArray(logs) ? logs.length : 0;
 
-  if (todayCount >= limit) {
-    // 上限到達 — ログは記録するがポイント加算なし
-    await fetch(`${SUPABASE_URL}/rest/v1/share_logs`, {
+  const insertLog = async (pts) => {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/share_logs`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ user_id, share_target, share_type, points_awarded: 0 }),
+      body: JSON.stringify({ user_id, share_target, share_type, points_awarded: pts }),
     });
+    if (!r.ok) {
+      const body = await r.text();
+      console.error(`[share.js] INSERT share_logs failed: ${r.status} ${body}`);
+    }
+  };
+
+  if (todayCount >= limit) {
+    await insertLog(0);
     return res.status(200).json({ awarded: false, points: 0, reason: "already_claimed_today" });
   }
 
   // ポイント加算
-  // 1) share_logに記録
-  await fetch(`${SUPABASE_URL}/rest/v1/share_logs`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ user_id, share_target, share_type, points_awarded: points }),
-  });
+  await insertLog(points);
 
-  // 2) user_pointsに加算
+  // user_pointsに加算
   const fetchPts = await fetch(
     `${SUPABASE_URL}/rest/v1/user_points?user_id=eq.${user_id}&select=balance`,
     { headers }
@@ -60,18 +62,20 @@ export default async function handler(req, res) {
   let newBalance;
   if (Array.isArray(rows) && rows[0]) {
     newBalance = (rows[0].balance || 0) + points;
-    await fetch(`${SUPABASE_URL}/rest/v1/user_points?user_id=eq.${user_id}`, {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/user_points?user_id=eq.${user_id}`, {
       method: "PATCH",
       headers: { ...headers, "Prefer": "return=representation" },
       body: JSON.stringify({ balance: newBalance, updated_at: new Date().toISOString() }),
     });
+    if (!r.ok) console.error(`[share.js] PATCH user_points failed: ${r.status} ${await r.text()}`);
   } else {
     newBalance = points;
-    await fetch(`${SUPABASE_URL}/rest/v1/user_points`, {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/user_points`, {
       method: "POST",
       headers: { ...headers, "Prefer": "return=representation" },
       body: JSON.stringify({ user_id, balance: newBalance }),
     });
+    if (!r.ok) console.error(`[share.js] POST user_points failed: ${r.status} ${await r.text()}`);
   }
 
   return res.status(200).json({ awarded: true, points, balance: newBalance });

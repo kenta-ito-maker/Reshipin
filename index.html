@@ -1338,7 +1338,6 @@ function App() {
   };
 
   const setPeople = v => { const n = typeof v==="function"?v(people):v; setPplRaw(n); try{localStorage.setItem("rsp_ppl",JSON.stringify(n));}catch{} };
-  const setKondateMode = v => { setKondateModeRaw(v); try{localStorage.setItem("rsp_kondate_mode",JSON.stringify(v));}catch{} };
   const setFamilyNote = v => { setFamRaw(v); try{localStorage.setItem("rsp_fam",JSON.stringify(v));}catch{} };
 
   const [fridgeImages, setFridgeImages] = useState([]);
@@ -1349,7 +1348,6 @@ function App() {
   const [shopImages, setShopImages] = useState([]); // [{url, b64}]
   const [shopText, setShopText] = useState("");
   const [extras, setExtras] = useState("");
-  const [kondateMode, setKondateModeRaw] = useState(() => load("rsp_kondate_mode", "set")); // "set" | "single"
   const [gachaMode, setGachaModeRaw] = useState(() => load("rsp_gacha_mode", "fridge")); // "fridge" | "shop"
   const [gachaAnim, setGachaAnim] = useState(false);
   const [altOpen, setAltOpen] = useState(false);
@@ -1376,7 +1374,7 @@ function App() {
   const analysisKey = () => appMode === "meal_prep" ? "repi_meal_prep_analysis" : "repi_last_analysis";
   const saveAnalysis = (r, recs, mode, mpExtra) => {
     try { localStorage.setItem(analysisKey(), JSON.stringify({
-      result: r, recipes: recs, gachaMode: mode, kondateMode, people, extras, mealPrepExtra: mpExtra||null,
+      result: r, recipes: recs, gachaMode: mode, volumeType, people, extras, mealPrepExtra: mpExtra||null,
       generatedAt: new Date().toISOString()
     })); } catch {}
   };
@@ -1489,7 +1487,7 @@ function App() {
     // ログ記録
     const uid = getUserId();
     const chipList = extras ? extras.split("、").filter(Boolean) : [];
-    sbFetch("/api/admin/log", {method:"POST", body: JSON.stringify({table:"analyze_logs", data:{user_id:uid, mode:appMode, gacha_mode:mode, kondate_mode:kondateMode, chips:extras||null}})}).catch(()=>{});
+    sbFetch("/api/admin/log", {method:"POST", body: JSON.stringify({table:"analyze_logs", data:{user_id:uid, mode:appMode, gacha_mode:mode, volume_type:volumeType, chips:extras||null}})}).catch(()=>{});
     if (chipList.length > 0) sbFetch("/api/admin/log", {method:"POST", body: JSON.stringify({table:"chip_logs", data:{user_id:uid, chips:chipList}})}).catch(()=>{});
     try {
       let sysPrompt, content;
@@ -1502,18 +1500,20 @@ function App() {
         );
         content = [{type:"text",text:`${prepDays}日分の作り置きおかず3品を提案してください。`}];
       } else if (mode === "free") {
-        sysPrompt = PROMPT_FREE(people, familyNote, allExtras, kondateMode);
-        const userText = kondateMode === "set"
+        const vMode = volumeType === "hearty" ? "set" : "single";
+        sysPrompt = PROMPT_FREE(people, familyNote, allExtras, vMode);
+        const userText = vMode === "set"
           ? "在庫に関係なく、新しい「主菜＋副菜＋汁物」の献立セットを3案提案してください。"
           : "在庫に関係なく、新しい1品料理を3つ提案してください。";
         content = [{type:"text",text:userText}];
       } else {
         const isFridgeOnly = mode === "fridge";
-        const promptFn = kondateMode === "set" ? PROMPT_KONDATE_SET : PROMPT_KONDATE_SINGLE;
+        const vMode = volumeType === "hearty" ? "set" : "single";
+        const promptFn = vMode === "set" ? PROMPT_KONDATE_SET : PROMPT_KONDATE_SINGLE;
         sysPrompt = isFridgeOnly
           ? promptFn(inventory, "※在庫にある食材だけで作れる献立を提案してください。買い物不要のものだけ。", people, familyNote, allExtras)
           : promptFn(inventory, shopText || "特売・値引き情報なし", people, familyNote, allExtras);
-        const userText = kondateMode === "set"
+        const userText = vMode === "set"
           ? (isFridgeOnly ? "在庫にある食材で作れる「主菜＋副菜＋汁物」の献立セットを3案提案してください。" : "在庫と特売情報から「主菜＋副菜＋汁物」の献立セットを3案提案してください。")
           : (isFridgeOnly ? "在庫にある食材だけで1品料理を3つ提案してください。" : "在庫と特売情報から1品料理を3つ提案してください。");
         content = !isFridgeOnly && shopImages.length > 0
@@ -1724,32 +1724,6 @@ function App() {
               </div>
             </div>
             <textarea style={S.warmTextarea} placeholder={"追加のリクエスト（任意）\n例：あっさり系で、和食多め、20分以内"} value={extras} onChange={e => setExtras(e.target.value)} rows={2}/>
-            {appMode==="daily" && <div style={{display:"flex",gap:8,marginBottom:12,background:"#fdecd8",borderRadius:16,padding:5}}>
-              {[
-                {key:"set", label:"🍱 献立セット", desc:"主菜+副菜+汁物"},
-                {key:"single", label:"🥘 1品だけ", desc:"おかず1品を提案"},
-              ].map(m => {
-                const selected = kondateMode === m.key;
-                return (
-                  <button key={m.key}
-                    onClick={() => setKondateMode(m.key)}
-                    style={{
-                      flex:1,
-                      background: selected ? "#fff" : "transparent",
-                      border: "none",
-                      borderRadius: 12,
-                      padding: "9px 4px",
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                      boxShadow: selected ? "0 2px 6px rgba(214,120,80,0.15)" : "none",
-                      transition: "all 0.2s",
-                    }}>
-                    <div style={{fontSize:13, fontWeight:700, color: selected?"#d67850":"#b89f87"}}>{m.label}</div>
-                    <div style={{fontSize:10, color: selected?"#8a7563":"#b89f87", marginTop:2}}>{m.desc}</div>
-                  </button>
-                );
-              })}
-            </div>}
             {appMode==="daily" && (
               <div style={{marginBottom:14}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#b89f87",marginBottom:6,letterSpacing:"0.1em"}}>いつの献立？</div>

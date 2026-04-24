@@ -1104,8 +1104,6 @@ function App() {
   const [feedbackModal, setFeedbackModal] = useState(null); // {cookedId, title}
   const [feedbackRating, setFeedbackRating] = useState(null);
   const [feedbackComment, setFeedbackComment] = useState("");
-  const [dailyPick, setDailyPick] = useState(null); // {recipe_name, recipe_data, theme}
-  const [dailyPickLoading, setDailyPickLoading] = useState(false);
   const [points, setPoints] = useState(0);
   const [pointToast, setPointToast] = useState(null); // {amount, reason}
   const [shareMenu, setShareMenu] = useState(false);
@@ -1128,8 +1126,6 @@ function App() {
     loadPoints().then(setPoints);
     // Load saved recipes
     sbFetch(`/api/recipes?user_id=${getUserId()}`).then(d => { if(Array.isArray(d)) setSavedRecipes(d); }).catch(()=>{});
-    // Load daily pick
-    sbFetch("/api/daily-pick").then(d => { if(d && d.recipe_name) setDailyPick(d); }).catch(()=>{});
     // PWA banner
     const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
     if (!isStandalone && !localStorage.getItem("repi_pwa_banner_dismissed")) setPwaBanner(true);
@@ -1202,41 +1198,6 @@ function App() {
 
   const sharePhotoRef = useRef();
 
-  // ─── 今日の一品 ──────────────────────────────────────────────
-  const loadDailyPick = async () => {
-    try {
-      const existing = await sbFetch("/api/daily-pick");
-      if (existing && existing.recipe_name) { setDailyPick(existing); return; }
-      // AI生成
-      setDailyPickLoading(true);
-      const now = new Date();
-      const month = now.getMonth() + 1;
-      const season = month<=2||month===12?"冬":month<=5?"春":month<=8?"夏":"秋";
-      const prompt = `あなたは料理提案AIです。${season}（${month}月）の旬食材を使った「今日の一品」を1つだけ提案してください。
-
-ルール：
-- 旬の食材を必ず1つ以上使う
-- 所要時間30分以内
-- 一般家庭で作れる難易度
-- テーマを1つ選ぶ：旬 / 時短 / 節約 / 映え
-- 調味料は家庭にあるものとして扱う
-- 返答はJSON以外のテキストを一切含めないこと。説明文や前置きは禁止。
-
-以下の形式のJSONのみを返してください（キー名は必ず英語で、この通りに）：
-{"name":"料理名","theme":"旬","time":"20分","calories":"約350kcal","ingredients":[{"name":"食材名","qty":"分量"}],"steps":["① 手順1の説明","② 手順2の説明","③ 手順3の説明","④ 手順4の説明"],"comment":"一言コメント"}`;
-      const raw = await callClaude(prompt, [{role:"user",content:[{type:"text",text:"JSONのみで返答してください。"}]}]);
-      // JSONだけを抽出（前後のテキストを除去）
-      const jsonStr = raw.replace(/```json|```/g,"").trim();
-      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("JSON not found in response");
-      const parsed = JSON.parse(jsonMatch[0]);
-      if (!parsed.name || !parsed.ingredients || !parsed.steps) throw new Error("Incomplete JSON");
-      // DB保存
-      const saved = await sbFetch("/api/daily-pick", {method:"POST", body: JSON.stringify({recipe_name: parsed.name, recipe_data: parsed, theme: parsed.theme})});
-      if (saved && saved.recipe_name) setDailyPick(saved);
-    } catch(e) { console.error("dailyPick error:", e); }
-    setDailyPickLoading(false);
-  };
 
   // ─── レシピ保存 ─────────────────────────────────────────────────
   const getRecipeName = (content) => {
@@ -1853,75 +1814,6 @@ function App() {
               </div>
             </div>
             {resultLoading && <div style={S.loadingRow}><span className="egg-wobble" style={{fontSize:18}}>🥚</span><span style={{color:"#d67850",fontSize:13}}>今日の献立を考え中…</span></div>}
-
-            {/* 今日の一品 */}
-            <div style={{marginTop:24}}>
-              <div style={S.sectionTitle}>⭐ 今日の一品</div>
-              {dailyPick ? (() => {
-                const raw = dailyPick.recipe_data || {};
-                const d = typeof raw === "string" ? (()=>{ try{return JSON.parse(raw)}catch{return{}} })() : raw;
-                const ings = d.ingredients || d.材料 || d.materials || [];
-                const stps = d.steps || d.手順 || d.instructions || [];
-                const [dpOpen, setDpOpen] = [false, ()=>{}]; // stateless for now, use card
-                return (
-                  <div style={{background:"linear-gradient(135deg,#fff8f0 0%,#fdecd8 100%)",borderRadius:24,boxShadow:"0 3px 16px rgba(214,120,80,0.12)",border:"1.5px solid #e8c8a0",overflow:"hidden"}}>
-                    <div style={{padding:"18px 20px"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                        <span style={{fontSize:11,background:"#d67850",color:"#fff",borderRadius:20,padding:"3px 12px",fontWeight:700}}>#{d.theme||"旬"}</span>
-                        {d.time && <span style={{fontSize:11,background:"#fdf4e8",color:"#8a7563",borderRadius:20,padding:"3px 10px",fontWeight:600}}>⏱ {d.time}</span>}
-                        {d.calories && <span style={{fontSize:11,background:"#fff5ea",color:"#c56640",borderRadius:20,padding:"3px 10px",fontWeight:600}}>🔥 {d.calories}</span>}
-                      </div>
-                      <div style={{fontSize:18,fontWeight:700,color:"#5a4a3a",fontFamily:"'Kaisei Decol',serif",marginBottom:6}}>{dailyPick.recipe_name}</div>
-                      {d.comment && <div style={{fontSize:12,color:"#8a6d3a",fontStyle:"italic",lineHeight:1.6}}>💬 {d.comment}</div>}
-                    </div>
-                    <details style={{borderTop:"1.5px dashed #f0e0c8"}}>
-                      <summary style={{padding:"12px 20px",fontSize:13,fontWeight:700,color:"#d67850",cursor:"pointer",listStyle:"none"}}>▼ レシピを見る</summary>
-                      <div style={{padding:"0 20px 18px"}}>
-                        {ings.length > 0 && (
-                          <div style={{marginBottom:14}}>
-                            <div style={{fontSize:12,fontWeight:700,color:"#8a7563",marginBottom:8}}>📋 材料</div>
-                            <div style={{background:"#fdf9f0",borderRadius:12,padding:"12px 16px"}}>
-                              {ings.map((ing,j) => (
-                                <div key={j} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:13,color:"#5a4a3a",borderBottom:j<ings.length-1?"1px dashed #f0e0c8":"none"}}>
-                                  <span>{ing.name||ing.ingredient||ing.食材||""}</span><span style={{color:"#8a7563",fontSize:12}}>{ing.qty||ing.amount||ing.分量||""}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {stps.length > 0 && (
-                          <div>
-                            <div style={{fontSize:12,fontWeight:700,color:"#8a7563",marginBottom:8}}>👨‍🍳 作り方</div>
-                            {stps.map((s,j) => {
-                              const txt = typeof s === "string" ? s : s.text || s.step || "";
-                              const clean = txt.replace(/^[①②③④⑤⑥⑦⑧⑨⑩\d.)\s]+/, "");
-                              return (
-                                <div key={j} style={{display:"flex",gap:8,marginBottom:6,fontSize:13,color:"#5a4a3a",lineHeight:1.7}}>
-                                  <span style={{fontWeight:700,color:"#d67850"}}>{["①","②","③","④","⑤","⑥"][j]||"・"}</span>
-                                  <span>{clean||txt}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                        <button onClick={() => handleCook(dailyPick.recipe_name, JSON.stringify(d))}
-                          style={{marginTop:14,width:"100%",background:"#d67850",color:"#fff",border:"none",borderRadius:14,padding:"13px 0",fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>
-                          🍳 これを作った！
-                        </button>
-                      </div>
-                    </details>
-                  </div>
-                );
-              })() : (
-                <button onClick={loadDailyPick} disabled={dailyPickLoading}
-                  style={{width:"100%",background:"linear-gradient(135deg,#fff8f0,#fdecd8)",border:"1.5px solid #e8c8a0",borderRadius:20,padding:"20px",cursor:"pointer",fontFamily:"inherit"}}>
-                  {dailyPickLoading
-                    ? <span style={{color:"#d67850",fontSize:13}}><span className="egg-wobble">🥚</span> 一品を考え中…</span>
-                    : <span style={{color:"#d67850",fontSize:14,fontWeight:700}}>⭐ 今日の一品を見る</span>
-                  }
-                </button>
-              )}
-            </div>
           </div>
         )}
 

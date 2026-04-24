@@ -937,10 +937,10 @@ const ParsedRecipe = ({ content }) => {
   );
 };
 
-const RecipeCard = ({ title, badge, time, calories, content, onCooked, onSave, saved, onCook, onShare, flyerBadge }) => {
+const RecipeCard = ({ title, badge, time, calories, content, onCooked, onSave, saved, onCook, onShare, flyerBadge, onReject, rejected }) => {
   const [open, setOpen] = React.useState(false);
   return (
-    <div style={{background:"#fffcf7",borderRadius:24,boxShadow:"0 2px 14px rgba(160,120,80,0.08)",border:"1.5px solid #f0e0c8",marginBottom:14,overflow:"hidden"}}>
+    <div style={{background:"#fffcf7",borderRadius:24,boxShadow:"0 2px 14px rgba(160,120,80,0.08)",border:"1.5px solid #f0e0c8",marginBottom:14,overflow:"hidden",opacity:rejected?0.4:1,transition:"opacity 0.3s"}}>
       <div style={{padding:"18px 20px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}} onClick={() => setOpen(o => !o)}>
         <div style={{flex:1}}>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
@@ -978,6 +978,13 @@ const RecipeCard = ({ title, badge, time, calories, content, onCooked, onSave, s
                 onClick={(e) => { e.stopPropagation(); onShare(); }}
                 style={{background:"#e8f4fd",color:"#3a7ab5",border:"none",borderRadius:14,padding:"13px 16px",fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>
                 📢
+              </button>
+            )}
+            {onReject && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onReject(); }}
+                style={{background:rejected?"#f0e0c8":"#fdf0f0",color:rejected?"#b89f87":"#c0392b",border:"none",borderRadius:14,padding:"13px 16px",fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>
+                {rejected ? "↩" : "❌"}
               </button>
             )}
           </div>
@@ -1101,6 +1108,10 @@ function App() {
   const [cookedLogs, setCookedLogs] = useState([]);
   const [cookConfirm, setCookConfirm] = useState(null); // {title, content, idx}
   const [cookingInProgress, setCookingInProgress] = useState(false);
+  const [rejectedIdxs, setRejectedIdxs] = useState(new Set());
+  const [feedbackModal, setFeedbackModal] = useState(null); // {cookedId, title}
+  const [feedbackRating, setFeedbackRating] = useState(null);
+  const [feedbackComment, setFeedbackComment] = useState("");
   const [points, setPoints] = useState(0);
   const [pointToast, setPointToast] = useState(null); // {amount, reason}
   const [shareMenu, setShareMenu] = useState(false);
@@ -1242,12 +1253,17 @@ function App() {
       }
       // cooked_logs に記録
       const uid = getUserId();
-      await sbFetch("/api/cooked", {method:"POST", body: JSON.stringify({user_id: uid, recipe_name: title, recipe_data: {content}, ingredients_consumed: consumedArr})});
+      const cookedRes = await sbFetch("/api/cooked", {method:"POST", body: JSON.stringify({user_id: uid, recipe_name: title, recipe_data: {content}, ingredients_consumed: consumedArr})});
+      const cookedId = Array.isArray(cookedRes) && cookedRes[0] ? cookedRes[0].id : null;
       // 在庫リロード
       const freshInv = await loadInventory();
       setInvRaw(freshInv);
       // ポイント加算
       awardPoints(10, "お料理おつかれさま！");
+      // フィードバックモーダル表示
+      setFeedbackModal({cookedId, title});
+      setFeedbackRating(null);
+      setFeedbackComment("");
       // 初回だけ注意書き
       if (!localStorage.getItem("repi_cook_notice_shown")) {
         localStorage.setItem("repi_cook_notice_shown", "1");
@@ -1259,6 +1275,22 @@ function App() {
     }
     setCookingInProgress(false);
     setCookConfirm(null);
+  };
+
+  const submitFeedback = async () => {
+    if (feedbackModal?.cookedId && feedbackRating) {
+      await sbFetch(`/api/cooked?id=${feedbackModal.cookedId}`, {method:"PATCH", body: JSON.stringify({rating: feedbackRating, feedback_comment: feedbackComment||null})}).catch(()=>{});
+    }
+    setFeedbackModal(null);
+  };
+
+  const toggleReject = async (idx, title, content) => {
+    if (rejectedIdxs.has(idx)) {
+      setRejectedIdxs(prev => { const n = new Set(prev); n.delete(idx); return n; });
+    } else {
+      setRejectedIdxs(prev => new Set(prev).add(idx));
+      sbFetch("/api/rejected", {method:"POST", body: JSON.stringify({user_id: getUserId(), recipe_name: title, recipe_data: {content}})}).catch(()=>{});
+    }
   };
 
   const handleIssueCode = async () => {
@@ -1469,6 +1501,7 @@ function App() {
       setResult(text);
       const parsedBlocks = text.split(/(?=【(?:献立セット)?[①②③])/).filter(b => b.match(/【(?:献立セット)?[①②③]/));
       setRecipes(parsedBlocks);
+      setRejectedIdxs(new Set());
       // 作り置きモード：食べる順＋リメイクを抽出
       let mpExtra = null;
       if (appMode === "meal_prep") {
@@ -1848,7 +1881,8 @@ function App() {
                         <RecipeCard key={idx+recipe.slice(0,30)} title={title} badge={badge} time={time} calories={calories} content={recipe} flyerBadge={flyerBadge}
                           onSave={() => toggleSaveRecipe(recipe)} saved={isRecipeSaved(recipe)}
                           onCook={appMode==="daily" ? () => handleCook(title, recipe) : null}
-                          onShare={() => { setShareTargetTitle(title); setSharePhoto(null); setShareMenu(true); }}/>
+                          onShare={() => { setShareTargetTitle(title); setSharePhoto(null); setShareMenu(true); }}
+                          onReject={() => toggleReject(idx, title, recipe)} rejected={rejectedIdxs.has(idx)}/>
                       );
                     }
                     if (!altOpen) return null;
@@ -1856,7 +1890,8 @@ function App() {
                       <RecipeCard key={idx+recipe.slice(0,30)} title={title} badge={badge} time={time} calories={calories} content={recipe} flyerBadge={flyerBadge}
                         onSave={() => toggleSaveRecipe(recipe)} saved={isRecipeSaved(recipe)}
                         onCook={appMode==="daily" ? () => handleCook(title, recipe) : null}
-                        onShare={() => { setShareTargetTitle(title); setSharePhoto(null); setShareMenu(true); }}/>
+                        onShare={() => { setShareTargetTitle(title); setSharePhoto(null); setShareMenu(true); }}
+                        onReject={() => toggleReject(idx, title, recipe)} rejected={rejectedIdxs.has(idx)}/>
                     );
                   })}
                   {appMode!=="meal_prep" && recipes.length > 1 && (
@@ -2367,6 +2402,39 @@ function App() {
               <button onClick={confirmCook} disabled={cookingInProgress}
                 style={{flex:1,background:"#d67850",border:"none",borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer",fontFamily:"inherit",opacity:cookingInProgress?0.6:1}}>
                 {cookingInProgress ? <span><span className="egg-wobble">🥚</span> 調理中…</span> : "🍳 作る！"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {feedbackModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(90,74,58,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:210,padding:20}}>
+          <div style={{width:"100%",maxWidth:400,background:"#fffcf7",borderRadius:24,padding:"24px 22px"}} onClick={e => e.stopPropagation()}>
+            <div style={{fontSize:17,fontWeight:700,color:"#5a4a3a",marginBottom:4}}>🍳 どうだった？</div>
+            <div style={{fontSize:13,color:"#8a7563",marginBottom:16}}>「{feedbackModal.title}」の感想を教えてね</div>
+            <div style={{display:"flex",gap:10,justifyContent:"center",marginBottom:16}}>
+              {[{v:3,icon:"😋",label:"美味しい"},{v:2,icon:"😐",label:"普通"},{v:1,icon:"😥",label:"イマイチ"}].map(r => (
+                <button key={r.v} onClick={() => setFeedbackRating(r.v)}
+                  style={{flex:1,background:feedbackRating===r.v?"#fdecd8":"#fff",border:`2px solid ${feedbackRating===r.v?"#d67850":"#f0e0c8"}`,borderRadius:16,padding:"14px 8px",cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s",textAlign:"center"}}>
+                  <div style={{fontSize:28}}>{r.icon}</div>
+                  <div style={{fontSize:11,fontWeight:700,color:feedbackRating===r.v?"#d67850":"#8a7563",marginTop:4}}>{r.label}</div>
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={feedbackComment}
+              onChange={e => setFeedbackComment(e.target.value.slice(0,200))}
+              placeholder="コメント（任意、200文字まで）"
+              rows={2}
+              style={{width:"100%",background:"#fff",border:"1.5px solid #e8d8c0",borderRadius:12,color:"#5a4a3a",fontSize:13,padding:"10px 14px",fontFamily:"inherit",outline:"none",resize:"none",marginBottom:14,boxSizing:"border-box"}}/>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={() => setFeedbackModal(null)}
+                style={{flex:1,background:"#f5f0ea",border:"none",borderRadius:14,padding:"13px 0",fontSize:13,fontWeight:700,color:"#8a7563",cursor:"pointer",fontFamily:"inherit"}}>
+                スキップ
+              </button>
+              <button onClick={submitFeedback} disabled={!feedbackRating}
+                style={{flex:1,background:feedbackRating?"#d67850":"#e8d8c8",border:"none",borderRadius:14,padding:"13px 0",fontSize:13,fontWeight:700,color:"#fff",cursor:feedbackRating?"pointer":"not-allowed",fontFamily:"inherit"}}>
+                送信する
               </button>
             </div>
           </div>

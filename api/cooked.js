@@ -20,6 +20,25 @@ export default async function handler(req, res) {
       headers: { ...headers, "Prefer": "return=representation" },
       body: JSON.stringify(req.body),
     });
+    if (!r.ok) {
+      const body = await r.text();
+      console.error(`[cooked.js] POST failed: ${r.status} ${body}`);
+    }
+    return res.status(200).json(await r.json());
+  }
+
+  if (req.method === "PATCH") {
+    const { id } = req.query;
+    if (!id) return res.status(400).json({ error: "id required" });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/cooked_logs?id=eq.${id}`, {
+      method: "PATCH",
+      headers: { ...headers, "Prefer": "return=representation" },
+      body: JSON.stringify(req.body),
+    });
+    if (!r.ok) {
+      const body = await r.text();
+      console.error(`[cooked.js] PATCH failed: ${r.status} ${body}`);
+    }
     return res.status(200).json(await r.json());
   }
 

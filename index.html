@@ -1096,6 +1096,7 @@ function App() {
   const [soundOn, setSoundOnRaw] = useState(() => localStorage.getItem("repi_sound_enabled") !== "false");
   const setSoundOn = v => { setSoundOnRaw(v); localStorage.setItem("repi_sound_enabled", v ? "true" : "false"); };
   const [mealTimes, setMealTimes] = useState(new Set()); // "breakfast" | "lunch" | "dinner"
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // {id, name}
   const [volumeType, setVolumeType] = useState("simple"); // "simple" | "standard" | "hearty"
   const [pwaModal, setPwaModal] = useState(false);
   const [pwaBanner, setPwaBanner] = useState(false);
@@ -2132,8 +2133,12 @@ function App() {
                               )}
                             </div>
                             <div style={{display:"flex",gap:6}}>
-                              <button style={S.iconBtn} onClick={() => setEditingId(isEditing?null:item.id)}>{isEditing?"✓":"✏️"}</button>
-                              <button style={{...S.iconBtn,color:"#e05c5c"}} onClick={() => removeItem(item.id)}>✕</button>
+                              <button style={{...S.iconBtn,background:isEditing?"#d67850":"#e8f0fd",color:isEditing?"#fff":"#4a7ab5",border:`1px solid ${isEditing?"#d67850":"#c0d8f0"}`}} onClick={() => setEditingId(isEditing?null:item.id)}>
+                                {isEditing?"✓":"✏️"}
+                              </button>
+                              <button style={{...S.iconBtn,background:"#fdf0f0",color:"#c0392b",border:"1px solid #f0d0d0"}} onClick={() => setDeleteConfirm({id:item.id,name:item.name})}>
+                                🗑️
+                              </button>
                             </div>
                           </div>
                         );
@@ -2414,6 +2419,24 @@ function App() {
                 <button style={S.skipLink} onClick={() => setConsumeModal(null)}>キャンセル</button>
               </>
             )}
+          </div>
+        </div>
+      )}
+      {deleteConfirm && (
+        <div style={{position:"fixed",inset:0,background:"rgba(90,74,58,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:20}} onClick={() => setDeleteConfirm(null)}>
+          <div style={{width:"100%",maxWidth:340,background:"#fffcf7",borderRadius:24,padding:"24px 22px"}} onClick={e => e.stopPropagation()}>
+            <div style={{fontSize:16,fontWeight:700,color:"#5a4a3a",marginBottom:8}}>🗑️ 削除しますか？</div>
+            <div style={{fontSize:14,color:"#5a4a3a",marginBottom:18}}>「{deleteConfirm.name}」を在庫から削除します</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={() => setDeleteConfirm(null)}
+                style={{flex:1,background:"#f5f0ea",border:"none",borderRadius:14,padding:"13px 0",fontSize:14,fontWeight:700,color:"#8a7563",cursor:"pointer",fontFamily:"inherit"}}>
+                キャンセル
+              </button>
+              <button onClick={() => { removeItem(deleteConfirm.id); setDeleteConfirm(null); }}
+                style={{flex:1,background:"#c0392b",border:"none",borderRadius:14,padding:"13px 0",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer",fontFamily:"inherit"}}>
+                削除する
+              </button>
+            </div>
           </div>
         </div>
       )}

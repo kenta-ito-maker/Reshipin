@@ -1095,6 +1095,7 @@ function App() {
   const [mealPrepExtra, setMealPrepExtra] = useState(null); // {eatingPlan, remakeIdeas} parsed from result
   const [soundOn, setSoundOnRaw] = useState(() => localStorage.getItem("repi_sound_enabled") !== "false");
   const setSoundOn = v => { setSoundOnRaw(v); localStorage.setItem("repi_sound_enabled", v ? "true" : "false"); };
+  const [mealTimes, setMealTimes] = useState(new Set()); // "breakfast" | "lunch" | "dinner"
   const [pwaModal, setPwaModal] = useState(false);
   const [pwaBanner, setPwaBanner] = useState(false);
   const [savedRecipes, setSavedRecipes] = useState([]);
@@ -1456,7 +1457,29 @@ function App() {
     setGachaAnim(true);
     setResultLoading(true);
     setAltOpen(false);
-    const allExtras = [extras, comment].filter(Boolean).join("、");
+    // 食事タイム指示を生成
+    const mealTimeHints = {
+      breakfast: "朝ごはん向け（15分以内、簡単、卵・パン・ご飯物中心、健康志向）",
+      lunch: "昼ごはん向け（30分以内、軽め、お弁当転用可）",
+      dinner: "夜ごはん向け（45分以内、メイン感、主菜＋副菜の構成可）",
+    };
+    let mealTimeExtra = "";
+    const selected = Array.from(mealTimes);
+    if (selected.length === 0) {
+      const h = new Date().getHours();
+      const auto = h < 10 ? "breakfast" : h < 15 ? "lunch" : "dinner";
+      mealTimeExtra = mealTimeHints[auto];
+    } else if (selected.length === 1) {
+      mealTimeExtra = mealTimeHints[selected[0]];
+    } else {
+      const labels = {breakfast:"朝",lunch:"昼",dinner:"夜"};
+      const names = selected.map(k => labels[k]).join("と");
+      mealTimeExtra = `${names}の両方を別々の料理として提案。食材リレー（朝の残りを昼で活用等）を意識してください。`;
+      if (selected.includes("breakfast") && selected.includes("lunch") && !selected.includes("dinner")) {
+        mealTimeExtra += " ブランチ（朝昼兼用）1品にまとめる案も可。";
+      }
+    }
+    const allExtras = [mealTimeExtra, extras, comment].filter(Boolean).join("、");
     // ログ記録
     const uid = getUserId();
     const chipList = extras ? extras.split("、").filter(Boolean) : [];
@@ -1721,6 +1744,23 @@ function App() {
                 );
               })}
             </div>}
+            {appMode==="daily" && (
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#b89f87",marginBottom:6,letterSpacing:"0.1em"}}>いつの献立？</div>
+                <div style={{display:"flex",gap:8}}>
+                  {[{key:"breakfast",icon:"🌅",label:"朝"},{key:"lunch",icon:"☀️",label:"昼"},{key:"dinner",icon:"🌙",label:"夜"}].map(m => {
+                    const sel = mealTimes.has(m.key);
+                    return (
+                      <button key={m.key} onClick={() => setMealTimes(prev => { const n=new Set(prev); if(n.has(m.key)) n.delete(m.key); else n.add(m.key); return n; })}
+                        style={{flex:1,background:sel?"#d67850":"#fdecd8",border:`1.5px solid ${sel?"#d67850":"#f0d8b8"}`,borderRadius:14,padding:"10px 4px",fontSize:13,fontWeight:700,color:sel?"#fff":"#8a7563",cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
+                        {m.icon} {m.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{fontSize:10,color:"#c0ac98",marginTop:4}}>未選択なら時刻で自動判定</div>
+              </div>
+            )}
             {appMode==="daily" && (() => {
               const CHIP_GROUPS = [
                 {title:"こだわり", tags:[

@@ -937,10 +937,10 @@ const ParsedRecipe = ({ content }) => {
   );
 };
 
-const RecipeCard = ({ title, badge, time, calories, content, onCooked, onSave, saved, onCook, onShare, flyerBadge, onReject, rejected }) => {
+const RecipeCard = ({ title, badge, time, calories, content, onCooked, onSave, saved, onCook, onShare, flyerBadge }) => {
   const [open, setOpen] = React.useState(false);
   return (
-    <div style={{background:"#fffcf7",borderRadius:24,boxShadow:"0 2px 14px rgba(160,120,80,0.08)",border:"1.5px solid #f0e0c8",marginBottom:14,overflow:"hidden",opacity:rejected?0.4:1,transition:"opacity 0.3s"}}>
+    <div style={{background:"#fffcf7",borderRadius:24,boxShadow:"0 2px 14px rgba(160,120,80,0.08)",border:"1.5px solid #f0e0c8",marginBottom:14,overflow:"hidden"}}>
       <div style={{padding:"18px 20px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}} onClick={() => setOpen(o => !o)}>
         <div style={{flex:1}}>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
@@ -978,13 +978,6 @@ const RecipeCard = ({ title, badge, time, calories, content, onCooked, onSave, s
                 onClick={(e) => { e.stopPropagation(); onShare(); }}
                 style={{background:"#e8f4fd",color:"#3a7ab5",border:"1px solid #d0e4f0",borderRadius:14,padding:"13px 12px",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>
                 📢 シェア
-              </button>
-            )}
-            {onReject && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onReject(); }}
-                style={{background:rejected?"#f0e0c8":"#fdf0f0",color:rejected?"#b89f87":"#c0392b",border:`1px solid ${rejected?"#e0d0c0":"#f0d0d0"}`,borderRadius:14,padding:"13px 12px",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>
-                {rejected ? "↩ 戻す" : "❌ なし"}
               </button>
             )}
           </div>
@@ -1108,7 +1101,6 @@ function App() {
   const [cookedLogs, setCookedLogs] = useState([]);
   const [cookConfirm, setCookConfirm] = useState(null); // {title, content, idx}
   const [cookingInProgress, setCookingInProgress] = useState(false);
-  const [rejectedIdxs, setRejectedIdxs] = useState(new Set());
   const [feedbackModal, setFeedbackModal] = useState(null); // {cookedId, title}
   const [feedbackRating, setFeedbackRating] = useState(null);
   const [feedbackComment, setFeedbackComment] = useState("");
@@ -1294,14 +1286,6 @@ function App() {
     setFeedbackModal(null);
   };
 
-  const toggleReject = async (idx, title, content) => {
-    if (rejectedIdxs.has(idx)) {
-      setRejectedIdxs(prev => { const n = new Set(prev); n.delete(idx); return n; });
-    } else {
-      setRejectedIdxs(prev => new Set(prev).add(idx));
-      sbFetch("/api/rejected", {method:"POST", body: JSON.stringify({user_id: getUserId(), recipe_name: title, recipe_data: {content}})}).catch(()=>{});
-    }
-  };
 
   const handleIssueCode = async () => {
     setIssuingCode(true);
@@ -1511,7 +1495,6 @@ function App() {
       setResult(text);
       const parsedBlocks = text.split(/(?=【(?:献立セット)?[①②③])/).filter(b => b.match(/【(?:献立セット)?[①②③]/));
       setRecipes(parsedBlocks);
-      setRejectedIdxs(new Set());
       // 作り置きモード：食べる順＋リメイクを抽出
       let mpExtra = null;
       if (appMode === "meal_prep") {
@@ -1892,7 +1875,7 @@ function App() {
                           onSave={() => toggleSaveRecipe(recipe)} saved={isRecipeSaved(recipe)}
                           onCook={appMode==="daily" ? () => handleCook(title, recipe) : null}
                           onShare={() => { setShareTargetTitle(title); setSharePhoto(null); setShareMenu(true); }}
-                          onReject={() => toggleReject(idx, title, recipe)} rejected={rejectedIdxs.has(idx)}/>
+/>
                       );
                     }
                     if (!altOpen) return null;
@@ -1900,8 +1883,7 @@ function App() {
                       <RecipeCard key={idx+recipe.slice(0,30)} title={title} badge={badge} time={time} calories={calories} content={recipe} flyerBadge={flyerBadge}
                         onSave={() => toggleSaveRecipe(recipe)} saved={isRecipeSaved(recipe)}
                         onCook={appMode==="daily" ? () => handleCook(title, recipe) : null}
-                        onShare={() => { setShareTargetTitle(title); setSharePhoto(null); setShareMenu(true); }}
-                        onReject={() => toggleReject(idx, title, recipe)} rejected={rejectedIdxs.has(idx)}/>
+                        onShare={() => { setShareTargetTitle(title); setSharePhoto(null); setShareMenu(true); }}/>
                     );
                   })}
                   {appMode!=="meal_prep" && recipes.length > 1 && (

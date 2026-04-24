@@ -1220,14 +1220,20 @@ function App() {
 - 一般家庭で作れる難易度
 - テーマを1つ選ぶ：旬 / 時短 / 節約 / 映え
 - 調味料は家庭にあるものとして扱う
+- 返答はJSON以外のテキストを一切含めないこと。説明文や前置きは禁止。
 
-返答はJSONのみ：
-{"name":"料理名","theme":"旬","time":"20分","calories":"約350kcal","ingredients":[{"name":"食材","qty":"分量"}],"steps":["手順1","手順2","手順3","手順4"],"comment":"一言コメント"}`;
-      const raw = await callClaude(prompt, [{role:"user",content:[{type:"text",text:"今日の一品を提案してください。"}]}]);
-      const parsed = JSON.parse(raw.replace(/```json|```/g,"").trim());
+以下の形式のJSONのみを返してください（キー名は必ず英語で、この通りに）：
+{"name":"料理名","theme":"旬","time":"20分","calories":"約350kcal","ingredients":[{"name":"食材名","qty":"分量"}],"steps":["① 手順1の説明","② 手順2の説明","③ 手順3の説明","④ 手順4の説明"],"comment":"一言コメント"}`;
+      const raw = await callClaude(prompt, [{role:"user",content:[{type:"text",text:"JSONのみで返答してください。"}]}]);
+      // JSONだけを抽出（前後のテキストを除去）
+      const jsonStr = raw.replace(/```json|```/g,"").trim();
+      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("JSON not found in response");
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (!parsed.name || !parsed.ingredients || !parsed.steps) throw new Error("Incomplete JSON");
       // DB保存
       const saved = await sbFetch("/api/daily-pick", {method:"POST", body: JSON.stringify({recipe_name: parsed.name, recipe_data: parsed, theme: parsed.theme})});
-      setDailyPick(saved);
+      if (saved && saved.recipe_name) setDailyPick(saved);
     } catch(e) { console.error("dailyPick error:", e); }
     setDailyPickLoading(false);
   };
@@ -1852,7 +1858,10 @@ function App() {
             <div style={{marginTop:24}}>
               <div style={S.sectionTitle}>⭐ 今日の一品</div>
               {dailyPick ? (() => {
-                const d = dailyPick.recipe_data || {};
+                const raw = dailyPick.recipe_data || {};
+                const d = typeof raw === "string" ? (()=>{ try{return JSON.parse(raw)}catch{return{}} })() : raw;
+                const ings = d.ingredients || d.材料 || d.materials || [];
+                const stps = d.steps || d.手順 || d.instructions || [];
                 const [dpOpen, setDpOpen] = [false, ()=>{}]; // stateless for now, use card
                 return (
                   <div style={{background:"linear-gradient(135deg,#fff8f0 0%,#fdecd8 100%)",borderRadius:24,boxShadow:"0 3px 16px rgba(214,120,80,0.12)",border:"1.5px solid #e8c8a0",overflow:"hidden"}}>
@@ -1868,27 +1877,31 @@ function App() {
                     <details style={{borderTop:"1.5px dashed #f0e0c8"}}>
                       <summary style={{padding:"12px 20px",fontSize:13,fontWeight:700,color:"#d67850",cursor:"pointer",listStyle:"none"}}>▼ レシピを見る</summary>
                       <div style={{padding:"0 20px 18px"}}>
-                        {d.ingredients && (
+                        {ings.length > 0 && (
                           <div style={{marginBottom:14}}>
                             <div style={{fontSize:12,fontWeight:700,color:"#8a7563",marginBottom:8}}>📋 材料</div>
                             <div style={{background:"#fdf9f0",borderRadius:12,padding:"12px 16px"}}>
-                              {d.ingredients.map((ing,j) => (
-                                <div key={j} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:13,color:"#5a4a3a",borderBottom:j<d.ingredients.length-1?"1px dashed #f0e0c8":"none"}}>
-                                  <span>{ing.name}</span><span style={{color:"#8a7563",fontSize:12}}>{ing.qty}</span>
+                              {ings.map((ing,j) => (
+                                <div key={j} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:13,color:"#5a4a3a",borderBottom:j<ings.length-1?"1px dashed #f0e0c8":"none"}}>
+                                  <span>{ing.name||ing.ingredient||ing.食材||""}</span><span style={{color:"#8a7563",fontSize:12}}>{ing.qty||ing.amount||ing.分量||""}</span>
                                 </div>
                               ))}
                             </div>
                           </div>
                         )}
-                        {d.steps && (
+                        {stps.length > 0 && (
                           <div>
                             <div style={{fontSize:12,fontWeight:700,color:"#8a7563",marginBottom:8}}>👨‍🍳 作り方</div>
-                            {d.steps.map((s,j) => (
-                              <div key={j} style={{display:"flex",gap:8,marginBottom:6,fontSize:13,color:"#5a4a3a",lineHeight:1.7}}>
-                                <span style={{fontWeight:700,color:"#d67850"}}>{["①","②","③","④","⑤","⑥"][j]||"・"}</span>
-                                <span>{s}</span>
-                              </div>
-                            ))}
+                            {stps.map((s,j) => {
+                              const txt = typeof s === "string" ? s : s.text || s.step || "";
+                              const clean = txt.replace(/^[①②③④⑤⑥⑦⑧⑨⑩\d.)\s]+/, "");
+                              return (
+                                <div key={j} style={{display:"flex",gap:8,marginBottom:6,fontSize:13,color:"#5a4a3a",lineHeight:1.7}}>
+                                  <span style={{fontWeight:700,color:"#d67850"}}>{["①","②","③","④","⑤","⑥"][j]||"・"}</span>
+                                  <span>{clean||txt}</span>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                         <button onClick={() => handleCook(dailyPick.recipe_name, JSON.stringify(d))}

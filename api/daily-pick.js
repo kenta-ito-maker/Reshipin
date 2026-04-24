@@ -7,7 +7,9 @@ export default async function handler(req, res) {
     "Authorization": `Bearer ${SUPABASE_KEY}`,
   };
 
-  const today = new Date().toISOString().split("T")[0];
+  // JST (UTC+9) で今日の日付を取得
+  const now = new Date(); now.setHours(now.getHours() + 9);
+  const today = now.toISOString().split("T")[0];
 
   if (req.method === "GET") {
     // 今日のピックを取得
@@ -31,6 +33,7 @@ export default async function handler(req, res) {
       return res.status(200).json(existing[0]);
     }
 
+    console.log(`[daily-pick.js] Saving: name=${recipe_name}, theme=${theme}, data_keys=${recipe_data ? Object.keys(recipe_data).join(",") : "null"}`);
     const r = await fetch(`${SUPABASE_URL}/rest/v1/daily_picks`, {
       method: "POST",
       headers: { ...headers, "Prefer": "return=representation" },

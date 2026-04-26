@@ -1226,7 +1226,9 @@ function App() {
   const [cookedLogs, setCookedLogs] = useState([]);
   const [cookConfirm, setCookConfirm] = useState(null); // {title, content, idx}
   const [cookingInProgress, setCookingInProgress] = useState(false);
-  const [invReview, setInvReview] = useState(null); // {title, content, items: [{id,name,action,level}]}
+  const [invReview, setInvReview] = useState(null); // {title, content, items: [{id,name,action,level,skip,deleteAll}]}
+  const [invReviewDetail, setInvReviewDetail] = useState(false); // false=stage1, true=stage2
+  const [deleteConfirmInv, setDeleteConfirmInv] = useState(null); // {idx, name}
   const [feedbackModal, setFeedbackModal] = useState(null); // {cookedId, title}
   const [feedbackRating, setFeedbackRating] = useState(null);
   const [feedbackComment, setFeedbackComment] = useState("");
@@ -1397,20 +1399,25 @@ function App() {
     setCookingInProgress(false);
     setCookConfirm(null);
     // 在庫調整確認モーダルを表示（アイテムがあれば）
-    setInvReview({title, content, items});
+    setInvReview({title, content, items}); setInvReviewDetail(false);
   };
 
   const applyInventoryReview = async () => {
     if (!invReview) return;
     const {title, content, items} = invReview;
     const consumedArr = [];
-    // 在庫を更新
     for (const it of items) {
       try {
+        if (it.skip) continue; // 「結局使わず」
         const inv = inventory.find(i => String(i.id) === String(it.id));
         if (!inv) continue;
+        if (it.deleteAll) {
+          // 「使い切った」→ 完全削除
+          await deleteItem(it.id);
+          consumedArr.push({...it, action:"delete"});
+          continue;
+        }
         if (it.customEdit && it.customQty != null) {
-          // 手入力モード
           const reduceBy = it.customQty;
           if (inv.quantity != null) {
             const newQty = inv.quantity - reduceBy;
@@ -1419,30 +1426,26 @@ function App() {
           consumedArr.push({...it, reduce_by: reduceBy});
           continue;
         }
-        const multiplier = it.level === 1 ? 0.5 : it.level === 3 ? 1.5 : 1;
+        // デフォルト: AI推定のaction
         if (it.action === "delete") {
           await deleteItem(it.id); consumedArr.push(it);
         } else if (it.action === "reduce") {
-          const baseReduce = it.reduce_by || 1;
-          const reduceBy = Math.max(1, Math.round(baseReduce * multiplier));
+          const reduceBy = it.reduce_by || 1;
           if (inv.quantity != null) {
             const newQty = inv.quantity - reduceBy;
             if (newQty <= 0) { await deleteItem(it.id); } else { await updateItemDb(it.id, {quantity: newQty}); }
-          } else {
-            await deleteItem(it.id);
-          }
+          } else { await deleteItem(it.id); }
           consumedArr.push({...it, reduce_by: reduceBy});
         }
       } catch {}
     }
     const freshInv = await loadInventory();
     setInvRaw(freshInv);
-    // cooked_logs に記録
+    setInvReview(null); setInvReviewDetail(false);
     try {
       const uid = getUserId();
       const cookedRes = await sbFetch("/api/cooked", {method:"POST", body: JSON.stringify({user_id: uid, recipe_name: title, recipe_data: {content}, ingredients_consumed: consumedArr})});
       const cookedId = Array.isArray(cookedRes) && cookedRes[0] ? cookedRes[0].id : null;
-      awardPoints(10, "お料理おつかれさま！");
       setFeedbackModal({cookedId, title, content});
       setFeedbackRating(null); setFeedbackComment("");
     } catch(e) { setPointToast({amount:0, reason:"記録に失敗しました"}); setTimeout(()=>setPointToast(null),3000); }
@@ -2650,58 +2653,105 @@ function App() {
         </div>
       )}
       {invReview && (
-        <div style={{position:"fixed",inset:0,background:"rgba(90,74,58,0.4)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:205}} onClick={() => {}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(90,74,58,0.4)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:205}}>
           <div style={{width:"100%",maxWidth:480,background:"#fffcf7",borderRadius:"28px 28px 0 0",padding:"24px 22px 40px",maxHeight:"80vh",overflowY:"auto"}} onClick={e => e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:700,color:"#5a4a3a",marginBottom:4}}>📦 在庫から減らす量を確認</div>
-            <div style={{fontSize:12,color:"#8a7563",marginBottom:16}}>「{invReview.title}」の使用量</div>
-            {invReview.items.length === 0 ? (
-              <div style={{color:"#aaa",fontSize:13,textAlign:"center",padding:"16px 0"}}>在庫から減らす食材はありません</div>
-            ) : (
-              <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:16}}>
-                {invReview.items.map((it, idx) => {
-                  const inv = inventory.find(i => String(i.id) === String(it.id));
-                  const name = it.name || inv?.name || "";
-                  return (
-                    <div key={idx} style={{background:"#faf8f4",borderRadius:14,padding:"12px 16px"}}>
-                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                        <div style={{fontSize:14,fontWeight:700,color:"#5a4a3a"}}>{name}</div>
-                        <div style={{fontSize:11,color:"#b89f87"}}>{inv?.display || (inv?.quantity != null ? `在庫: ${inv.quantity}` : "")}</div>
-                      </div>
-                      <div style={{display:"flex",gap:5}}>
-                        {[{v:1,label:"少なめ"},{v:2,label:"標準"},{v:3,label:"多め"}].map(opt => (
-                          <button key={opt.v} onClick={() => setInvReview(prev => ({...prev, items: prev.items.map((x,i) => i===idx?{...x,level:opt.v,customEdit:false}:x)}))}
-                            style={{flex:1,background:it.level===opt.v&&!it.customEdit?"#d67850":"#fff",border:`1.5px solid ${it.level===opt.v&&!it.customEdit?"#d67850":"#f0d8b8"}`,borderRadius:10,padding:"7px 4px",fontSize:11,fontWeight:700,color:it.level===opt.v&&!it.customEdit?"#fff":"#8a7563",cursor:"pointer",fontFamily:"inherit"}}>
-                            {opt.label}
-                          </button>
-                        ))}
-                        <button onClick={() => setInvReview(prev => ({...prev, items: prev.items.map((x,i) => i===idx?{...x,customEdit:!x.customEdit}:x)}))}
-                          style={{background:it.customEdit?"#e8f0fd":"#fff",border:`1.5px solid ${it.customEdit?"#4a7ab5":"#f0d8b8"}`,borderRadius:10,padding:"7px 8px",fontSize:11,fontWeight:700,color:it.customEdit?"#4a7ab5":"#8a7563",cursor:"pointer",fontFamily:"inherit"}}>
-                          ✏️
-                        </button>
-                      </div>
-                      {it.customEdit && (
-                        <div style={{marginTop:8}}>
-                          <QuantityInput value={it.customQty||it.reduce_by||1} display={it.customDisplay||""} itemName={name} itemCategory={inv?.category}
-                            onChange={v => setInvReview(prev => ({...prev, items: prev.items.map((x,i) => i===idx?{...x,customQty:v}:x)}))}
-                            onDisplayChange={v => setInvReview(prev => ({...prev, items: prev.items.map((x,i) => i===idx?{...x,customDisplay:v}:x)}))}/>
+            {!invReviewDetail ? (
+              /* ──── 第1段階: 確認一覧 ──── */
+              <>
+                <div style={{fontSize:17,fontWeight:700,color:"#5a4a3a",marginBottom:4}}>📦 使った量を確認</div>
+                <div style={{fontSize:12,color:"#8a7563",marginBottom:16}}>標準量でよければそのまま OK ✓</div>
+                {invReview.items.length === 0 ? (
+                  <div style={{color:"#aaa",fontSize:13,textAlign:"center",padding:"16px 0"}}>在庫から減らす食材はありません</div>
+                ) : (
+                  <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+                    {invReview.items.map((it, idx) => {
+                      const inv = inventory.find(i => String(i.id) === String(it.id));
+                      return (
+                        <div key={idx} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"#faf8f4",borderRadius:12,padding:"10px 14px",opacity:it.skip?0.4:1}}>
+                          <span style={{fontSize:13,fontWeight:600,color:"#5a4a3a"}}>{it.name||inv?.name}</span>
+                          <span style={{fontSize:12,color:"#d67850",fontWeight:700}}>{it.skip?"使わない":it.deleteAll?"使い切り":(inv?.display||"標準量")}</span>
                         </div>
-                      )}
+                      );
+                    })}
+                  </div>
+                )}
+                <div style={{display:"flex",gap:10}}>
+                  <button onClick={() => setInvReviewDetail(true)}
+                    style={{flex:1,background:"#e8f0fd",border:"none",borderRadius:14,padding:"14px 0",fontSize:13,fontWeight:700,color:"#4a7ab5",cursor:"pointer",fontFamily:"inherit"}}>
+                    ✏️ 個別に調整
+                  </button>
+                  <button onClick={applyInventoryReview}
+                    style={{flex:1,background:"#d67850",border:"none",borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer",fontFamily:"inherit"}}>
+                    ✓ これで引く
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* ──── 第2段階: 個別調整 ──── */
+              <>
+                <div style={{fontSize:17,fontWeight:700,color:"#5a4a3a",marginBottom:4}}>✏️ 個別に調整</div>
+                <div style={{fontSize:12,color:"#8a7563",marginBottom:16}}>「{invReview.title}」</div>
+                {deleteConfirmInv && (
+                  <div style={{background:"#fff5f5",border:"1.5px solid #f0b0b0",borderRadius:14,padding:"14px 16px",marginBottom:12}}>
+                    <div style={{fontSize:14,fontWeight:700,color:"#c0392b",marginBottom:8}}>🗑️ {deleteConfirmInv.name} ぜんぶ使い切った？</div>
+                    <div style={{fontSize:12,color:"#8a7563",marginBottom:12}}>在庫から削除されます</div>
+                    <div style={{display:"flex",gap:8}}>
+                      <button onClick={() => setDeleteConfirmInv(null)} style={{flex:1,background:"#f5f0ea",border:"none",borderRadius:10,padding:"10px",fontSize:12,fontWeight:700,color:"#8a7563",cursor:"pointer",fontFamily:"inherit"}}>キャンセル</button>
+                      <button onClick={() => { setInvReview(prev => ({...prev, items: prev.items.map((x,i) => i===deleteConfirmInv.idx?{...x,deleteAll:true,skip:false}:x)})); setDeleteConfirmInv(null); }}
+                        style={{flex:1,background:"#c0392b",border:"none",borderRadius:10,padding:"10px",fontSize:12,fontWeight:700,color:"#fff",cursor:"pointer",fontFamily:"inherit"}}>使い切った！</button>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                )}
+                <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:16}}>
+                  {invReview.items.map((it, idx) => {
+                    const inv = inventory.find(i => String(i.id) === String(it.id));
+                    const name = it.name || inv?.name || "";
+                    const cat = getQuickCategory(name, inv?.category);
+                    const quickBtns = QUICK_AMOUNTS[cat] || QUICK_AMOUNTS["デフォルト"];
+                    return (
+                      <div key={idx} style={{background:it.skip?"#f5f0ea":it.deleteAll?"#fff5f5":"#faf8f4",borderRadius:14,padding:"12px 16px"}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                          <div style={{fontSize:14,fontWeight:700,color:"#5a4a3a"}}>{name}</div>
+                          <div style={{fontSize:11,color:"#b89f87"}}>{inv?.display || (inv?.quantity != null ? `在庫: ${inv.quantity}` : "")}</div>
+                        </div>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                          <button onClick={() => setInvReview(prev => ({...prev, items: prev.items.map((x,i) => i===idx?{...x,skip:!x.skip,deleteAll:false,customEdit:false}:x)}))}
+                            style={{background:it.skip?"#aaa":"#f0ebe3",border:"1px solid #ddd",borderRadius:10,padding:"6px 8px",fontSize:10,fontWeight:700,color:it.skip?"#fff":"#8a7563",cursor:"pointer",fontFamily:"inherit"}}>
+                            結局使わず
+                          </button>
+                          {!it.skip && !it.deleteAll && quickBtns.slice(0,4).map(q => {
+                            const sel = it.customDisplay === q;
+                            return (
+                              <button key={q} onClick={() => { const p=parseDisplay(q); setInvReview(prev => ({...prev, items: prev.items.map((x,i) => i===idx?{...x,customDisplay:q,customQty:p.quantity,customEdit:true,level:2}:x)})); }}
+                                style={{background:sel?"#d67850":"#fff",border:`1px solid ${sel?"#d67850":"#f0d8b8"}`,borderRadius:10,padding:"6px 8px",fontSize:10,fontWeight:700,color:sel?"#fff":"#8a7563",cursor:"pointer",fontFamily:"inherit"}}>
+                                {q}
+                              </button>
+                            );
+                          })}
+                          {!it.skip && !it.deleteAll && (
+                            <button onClick={() => setDeleteConfirmInv({idx, name})}
+                              style={{background:"#fdf0f0",border:"1px solid #f0d0d0",borderRadius:10,padding:"6px 8px",fontSize:10,fontWeight:700,color:"#c0392b",cursor:"pointer",fontFamily:"inherit"}}>
+                              使い切った 🗑️
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{display:"flex",gap:10}}>
+                  <button onClick={() => { setInvReview(null); setInvReviewDetail(false);
+                    (async()=>{try{const uid=getUserId();const r=await sbFetch("/api/cooked",{method:"POST",body:JSON.stringify({user_id:uid,recipe_name:invReview.title,recipe_data:{content:invReview.content},ingredients_consumed:[]})});const id=Array.isArray(r)&&r[0]?r[0].id:null;setFeedbackModal({cookedId:id,title:invReview.title,content:invReview.content});setFeedbackRating(null);setFeedbackComment("");}catch{}})();
+                  }} style={{flex:1,background:"#f5f0ea",border:"none",borderRadius:14,padding:"14px 0",fontSize:13,fontWeight:700,color:"#8a7563",cursor:"pointer",fontFamily:"inherit"}}>
+                    全部スキップ
+                  </button>
+                  <button onClick={() => { setInvReviewDetail(false); applyInventoryReview(); }}
+                    style={{flex:1,background:"#d67850",border:"none",borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer",fontFamily:"inherit"}}>
+                    ✓ この量で引く
+                  </button>
+                </div>
+              </>
             )}
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={() => { setInvReview(null); /* スキップ：在庫減らさず記録だけ */
-                (async()=>{try{const uid=getUserId();const r=await sbFetch("/api/cooked",{method:"POST",body:JSON.stringify({user_id:uid,recipe_name:invReview.title,recipe_data:{content:invReview.content},ingredients_consumed:[]})});const id=Array.isArray(r)&&r[0]?r[0].id:null;awardPoints(10,"お料理おつかれさま！");setFeedbackModal({cookedId:id,title:invReview.title,content:invReview.content});setFeedbackRating(null);setFeedbackComment("");}catch{}})();
-              }} style={{flex:1,background:"#f5f0ea",border:"none",borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:700,color:"#8a7563",cursor:"pointer",fontFamily:"inherit"}}>
-                スキップ
-              </button>
-              <button onClick={applyInventoryReview}
-                style={{flex:1,background:"#d67850",border:"none",borderRadius:14,padding:"14px 0",fontSize:14,fontWeight:700,color:"#fff",cursor:"pointer",fontFamily:"inherit"}}>
-                ✓ この量で減らす
-              </button>
-            </div>
           </div>
         </div>
       )}

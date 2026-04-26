@@ -571,26 +571,39 @@ ${isSet ? `【献立セット①】
 };
 
 
-const PROMPT_CONSUME = (recipe, inv, people) => `あなたは料理の在庫消費を予測するAIです。以下の料理を${people}人分作った場合、在庫のどの食材がどれくらい減るかを予測してください。
+const NO_INVENTORY_TRACKING = [
+  "米","ご飯","白米","玄米","ライス",
+  "塩","砂糖","コショウ","胡椒","こしょう",
+  "油","サラダ油","オリーブ油","オリーブオイル","ごま油","ゴマ油","胡麻油",
+  "醤油","しょうゆ","みりん","酢","お酢","酒","料理酒","白ワイン","赤ワイン",
+  "味噌","みそ","めんつゆ","白だし","ポン酢",
+  "顆粒だし","ほんだし","鶏ガラスープの素","コンソメ","ブイヨン",
+  "マヨネーズ","ケチャップ","ソース","ウスターソース",
+  "白ごま","黒ごま","すりごま","片栗粉","小麦粉","薄力粉","強力粉","パン粉",
+  "水","湯","氷",
+];
+const isTracked = (name) => !NO_INVENTORY_TRACKING.some(skip => name.includes(skip) || skip.includes(name));
+
+const PROMPT_CONSUME = (recipe, inv, people) => {
+  const tracked = inv.filter(i => isTracked(i.name));
+  return `あなたは料理の在庫消費を予測するAIです。以下の料理を${people}人分作った場合、在庫のどの食材がどれくらい減るかを予測してください。
 料理：
 ${recipe}
 
 在庫食材（id・個数付き）：
-${inv.map(i=>`id=${i.id} ${i.name}${i.display?" "+i.display:i.quantity!=null?" ×"+i.quantity+"個":""}（${i.category||"冷蔵"}）`).join("\n")}
+${tracked.map(i=>`id=${i.id} ${i.name}${i.display?" "+i.display:i.quantity!=null?" ×"+i.quantity+"個":""}（${i.category||"冷蔵"}）`).join("\n")}
 
 ルール：
-- 在庫に含まれる食材で、この料理に使用されるもの全てをリストアップ
-- action は以下のいずれか：
-  "delete" = 全て使い切った（在庫から削除）
-  "reduce" = 一部使った（個数を減らす。reduce_byで減らす数を指定）
-  "keep" = 微量使用、ほぼ減らない（調味料等）
-- 肉・魚・野菜など主材料は通常 "delete" か "reduce"
-- 調味料（塩、醤油、油等）は "keep"
-- 個数がある食材は reduce_by で使った個数を返す
+- 上記の在庫食材の中で、この料理に使用されるもの全てをリストアップすること
+- 【重要】リストにある食材が料理に使われていれば、必ず含めること。省略禁止。
+- action は "delete"（全て使い切り）または "reduce"（一部使用、reduce_byで減らす数を指定）の2択
+- 個数・分量がある食材は reduce_by で使った個数を返す（例：3個中1個使用→reduce_by=1）
+- 個数がない食材は "delete" にする
 - 返答はJSON以外のテキストを含めないこと
 
 返答フォーマット：
-[{"id":"食材id","name":"食材名","action":"delete|reduce|keep","reduce_by":1},...]`;
+[{"id":"食材id","name":"食材名","action":"delete|reduce","reduce_by":1},...]`;
+};
 
 const callClaude = async (system, messages) => {
   const res = await fetch("/api/chat", {
@@ -1377,7 +1390,7 @@ function App() {
         // AIの推定をlevel 1(少なめ)/2(標準)/3(多め)に変換、action=keepは除外
         items = (Array.isArray(consumed)?consumed:[]).filter(it => {
           const inv = inventory.find(i => String(i.id) === String(it.id));
-          return inv && it.action !== "keep";
+          return !!inv;
         }).map(it => ({...it, level: 2})); // デフォルトは「標準」
       }
     } catch(e) { console.error("消費予測エラー:", e); }

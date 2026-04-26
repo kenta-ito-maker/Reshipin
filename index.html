@@ -1268,17 +1268,17 @@ function App() {
       if (ingNames.length > 0) text += `\n【材料】${ingNames.join("、")}\n`;
       if (tip) text += `【コツ】${tip}\n`;
       if (comment) text += `\n${comment}\n`;
-      text += `\nAI献立アプリ「レピ」で提案 ✨\nhttps://recip.in`;
+      text += `\nAIおまかせごはん『レピ』で提案 ✨\nhttps://recip.in`;
       return text;
     }
     if (shareTargetTitle) {
-      return `🍳 「${shareTargetTitle}」を作った！\n\nAI献立アプリ「レピ」で提案 ✨\nhttps://recip.in`;
+      return `🍳 「${shareTargetTitle}」を作った！\n\nAIおまかせごはん『レピ』で提案 ✨\nhttps://recip.in`;
     }
     const dishNames = recipes.map(r => {
       const m = r.match(/【(?:献立セット)?[①②③]\s*(.+?)】/) || r.match(/🥘\s*主菜\s*[:：]\s*(.+)/);
       return m ? m[1].trim() : "";
     }).filter(Boolean).map(n => `・${n}`).join("\n");
-    return `🍳 今日のレピ献立\n${dishNames}\n\nAI献立アプリ「レピ」で提案 ✨\nhttps://recip.in`;
+    return `🍳 今日のレピ献立\n${dishNames}\n\nAIおまかせごはん『レピ』で提案 ✨\nhttps://recip.in`;
   };
 
   const doShare = async (target) => {

@@ -1285,8 +1285,18 @@ function App() {
     const text = getShareText();
     const type = sharePhoto ? "made" : "menu";
     setShareLoading(true);
-    // シェア画面を開く
-    if (target === "x") {
+    // 写真がある場合 → navigator.share で写真付きシェア
+    if (sharePhoto && navigator.canShare) {
+      try {
+        const shareData = { text, files: [sharePhoto] };
+        if (navigator.canShare(shareData)) {
+          await navigator.share(shareData);
+        } else {
+          // filesが共有不可ならテキストのみ
+          await navigator.share({ text });
+        }
+      } catch(e) { if (e.name !== "AbortError") console.error("share error:", e); }
+    } else if (target === "x") {
       window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
     } else if (target === "instagram") {
       navigator.clipboard?.writeText(text);

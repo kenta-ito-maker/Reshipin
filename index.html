@@ -658,20 +658,19 @@ const QuantityInput = ({ value, onChange }) => (
 );
 
 // IMEセーフなテキスト入力（変換確定 or フォーカス外れた時のみonSave発火）
-const DebouncedInput = ({ value, onSave, style, placeholder }) => {
+const DebouncedInput = ({ value, onSave, style, placeholder, multiline, rows }) => {
   const [local, setLocal] = React.useState(value || "");
   const composing = React.useRef(false);
   React.useEffect(() => { setLocal(value || ""); }, [value]);
-  return (
-    <input
-      style={style} placeholder={placeholder} value={local}
-      onChange={e => setLocal(e.target.value)}
-      onCompositionStart={() => { composing.current = true; }}
-      onCompositionEnd={e => { composing.current = false; onSave(e.target.value); }}
-      onBlur={() => { if (!composing.current && local !== value) onSave(local); }}
-      onKeyDown={e => { if (e.key === "Enter" && !composing.current) { e.target.blur(); } }}
-    />
-  );
+  const props = {
+    style, placeholder, value: local,
+    onChange: e => setLocal(e.target.value),
+    onCompositionStart: () => { composing.current = true; },
+    onCompositionEnd: e => { composing.current = false; onSave(e.target.value); },
+    onBlur: () => { if (!composing.current && local !== value) onSave(local); },
+  };
+  if (multiline) return <textarea {...props} rows={rows||2}/>;
+  return <input {...props} onKeyDown={e => { if (e.key === "Enter" && !composing.current) { e.target.blur(); } }}/>;
 };
 
 const CATEGORIES = ["冷蔵", "冷凍", "常温"];
@@ -1780,10 +1779,10 @@ function App() {
               </div>
               <input ref={shopRef} type="file" accept="image/*" multiple style={{display:"none"}} onChange={async e => { const files=Array.from(e.target.files); if(!files.length) return; e.target.value=""; const imgs=await Promise.all(files.map(async f=>({url:URL.createObjectURL(f),b64:await toBase64(f)}))); setShopImages(prev=>[...prev,...imgs]); }}/>
               <div style={{...S.uploadBox,minHeight:80,cursor:"default"}}>
-                <textarea style={{...S.warmTextarea,marginBottom:0,border:"none",background:"transparent",height:"100%",fontSize:12,padding:10}} placeholder={"値引き情報を入力\n例：鶏もも半額"} value={shopText} onChange={e => setShopText(e.target.value)} rows={3}/>
+                <DebouncedInput multiline rows={3} style={{...S.warmTextarea,marginBottom:0,border:"none",background:"transparent",height:"100%",fontSize:12,padding:10}} placeholder={"値引き情報を入力\n例：鶏もも半額"} value={shopText} onSave={setShopText}/>
               </div>
             </div>
-            <textarea style={S.warmTextarea} placeholder={"追加のリクエスト（任意）\n例：あっさり系で、和食多め、20分以内"} value={extras} onChange={e => setExtras(e.target.value)} rows={2}/>
+            <DebouncedInput multiline rows={2} style={S.warmTextarea} placeholder={"追加のリクエスト（任意）\n例：あっさり系で、和食多め、20分以内"} value={extras} onSave={setExtras}/>
             {appMode==="daily" && (
               <div style={{marginBottom:14}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#b89f87",marginBottom:6,letterSpacing:"0.1em"}}>いつの献立？</div>
@@ -2013,12 +2012,11 @@ function App() {
             <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:20}}>
               <div style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:18,padding:"14px 16px"}}>
                 <div style={{fontSize:12,fontWeight:700,color:"#8a7563",marginBottom:8}}>💭 こんな気分？（任意、今の条件を引き継ぎ）</div>
-                <textarea
+                <DebouncedInput multiline rows={2}
                   style={{...S.warmTextarea,marginBottom:0,fontSize:13,padding:"10px 14px",minHeight:40}}
                   placeholder={"「あっさり系で」「和食多めで」「子ども向け」など"}
                   value={resultComment}
-                  onChange={e => setResultComment(e.target.value)}
-                  rows={2}/>
+                  onSave={setResultComment}/>
               </div>
               <button
                 style={S.rerollKeepBtn}
@@ -2060,8 +2058,8 @@ function App() {
                 <div style={S.previewList}>
                   {(updatePreview||[{name:"",expiry:null,category:"冷蔵"}]).map((item,idx) => (
                     <div key={idx} style={S.previewRow}>
-                      <input style={S.warmInput} value={item.name} placeholder="食材名（例：鶏もも肉）"
-                        onChange={e => setUpdatePreview(p => { const n=[...(p||[{name:"",expiry:null,category:"冷蔵"}])]; n[idx]={...n[idx],name:e.target.value}; return n; })}/>
+                      <DebouncedInput style={S.warmInput} value={item.name} placeholder="食材名（例：鶏もも肉）"
+                        onSave={v => setUpdatePreview(p => { const n=[...(p||[{name:"",expiry:null,category:"冷蔵"}])]; n[idx]={...n[idx],name:v}; return n; })}/>
                       <CategoryPicker value={item.category} onChange={v => setUpdatePreview(p => { const n=[...(p||[{name:"",expiry:null,category:"冷蔵"}])]; n[idx]={...n[idx],category:v}; return n; })}/>
                       <ExpiryPicker value={item.expiry} onChange={v => setUpdatePreview(p => { const n=[...(p||[{name:"",expiry:null,category:"冷蔵"}])]; n[idx]={...n[idx],expiry:v}; return n; })}/>
                       <QuantityInput value={item.quantity} onChange={v => setUpdatePreview(p => { const n=[...(p||[{name:"",expiry:null,category:"冷蔵"}])]; n[idx]={...n[idx],quantity:v}; return n; })}/>
@@ -2114,7 +2112,7 @@ function App() {
                 <div style={S.previewList}>
                   {updatePreview.map((item,idx) => (
                     <div key={idx} style={S.previewRow}>
-                      <input style={S.warmInput} value={item.name} placeholder="食材名" onChange={e => updatePreviewItem(idx,"name",e.target.value)}/>
+                      <DebouncedInput style={S.warmInput} value={item.name} placeholder="食材名" onSave={v => updatePreviewItem(idx,"name",v)}/>
                       <CategoryPicker value={item.category} onChange={v => updatePreviewItem(idx,"category",v)}/>
                       <ExpiryPicker value={item.expiry} onChange={v => updatePreviewItem(idx,"expiry",v)}/>
                       <QuantityInput value={item.quantity} onChange={v => updatePreviewItem(idx,"quantity",v)}/>
@@ -2419,7 +2417,7 @@ function App() {
             </div>
             <div style={S.settingCard}>
               <div style={S.settingLabel}>📝 家族構成・食の好み</div>
-              <textarea style={S.warmTextarea} placeholder={"例：大人2人・子ども1人（5歳）。辛いものはNG。魚料理が好き。"} value={familyNote} onChange={e => setFamilyNote(e.target.value)} rows={4}/>
+              <DebouncedInput multiline rows={4} style={S.warmTextarea} placeholder={"例：大人2人・子ども1人（5歳）。辛いものはNG。魚料理が好き。"} value={familyNote} onSave={setFamilyNote}/>
               <div style={{color:"#aaa",fontSize:11,marginTop:-8}}>献立を提案するときに自動で考慮します</div>
             </div>
             <button style={{...S.mainBtn,background:"#f0ebe3",color:"#c0392b",marginTop:8}} onClick={() => { setInvRaw([]); setScreen("update"); }}>
@@ -2588,11 +2586,10 @@ function App() {
                 </button>
               ))}
             </div>
-            <textarea
+            <DebouncedInput multiline rows={2}
               value={feedbackComment}
-              onChange={e => setFeedbackComment(e.target.value.slice(0,200))}
+              onSave={v => setFeedbackComment(v.slice(0,200))}
               placeholder="コメント（任意、200文字まで）"
-              rows={2}
               style={{width:"100%",background:"#fff",border:"1.5px solid #e8d8c0",borderRadius:12,color:"#5a4a3a",fontSize:13,padding:"10px 14px",fontFamily:"inherit",outline:"none",resize:"none",marginBottom:14,boxSizing:"border-box"}}/>
             <div style={{display:"flex",gap:8,marginBottom:12}}>
               <button onClick={() => { toggleSaveRecipe(feedbackModal.content||""); }}

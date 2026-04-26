@@ -1294,7 +1294,7 @@ function App() {
       setTimeout(() => setPointToast(null), 3000);
       setTimeout(() => { try { window.open("instagram://", "_blank"); } catch {} }, 500);
     } else if (target === "line") {
-      window.open(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent("https://recip.in")}&text=${encodeURIComponent(text)}`, "_blank");
+      window.open(`https://line.me/R/share?text=${encodeURIComponent(text)}`, "_blank");
     }
     // ポイント加算
     try {

@@ -657,6 +657,23 @@ const QuantityInput = ({ value, onChange }) => (
   </div>
 );
 
+// IMEセーフなテキスト入力（変換確定 or フォーカス外れた時のみonSave発火）
+const DebouncedInput = ({ value, onSave, style, placeholder }) => {
+  const [local, setLocal] = React.useState(value || "");
+  const composing = React.useRef(false);
+  React.useEffect(() => { setLocal(value || ""); }, [value]);
+  return (
+    <input
+      style={style} placeholder={placeholder} value={local}
+      onChange={e => setLocal(e.target.value)}
+      onCompositionStart={() => { composing.current = true; }}
+      onCompositionEnd={e => { composing.current = false; onSave(e.target.value); }}
+      onBlur={() => { if (!composing.current && local !== value) onSave(local); }}
+      onKeyDown={e => { if (e.key === "Enter" && !composing.current) { e.target.blur(); } }}
+    />
+  );
+};
+
 const CATEGORIES = ["冷蔵", "冷凍", "常温"];
 const CATEGORY_ICONS = { "冷蔵":"🧊", "冷凍":"❄️", "常温":"🌾" };
 
@@ -2149,7 +2166,7 @@ function App() {
                             <div style={{flex:1}}>
                               {isEditing ? (
                                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                                  <input style={S.warmInput} value={item.name} onChange={e => updateItem(item.id,"name",e.target.value)}/>
+                                  <DebouncedInput style={S.warmInput} value={item.name} onSave={v => updateItem(item.id,"name",v)}/>
                                   <CategoryPicker value={item.category} onChange={v => updateItem(item.id,"category",v)}/>
                                   <ExpiryPicker value={item.expiry} onChange={v => updateItem(item.id,"expiry",v)}/>
                                   <QuantityInput value={item.quantity} onChange={v => updateItem(item.id,"quantity",v)}/>

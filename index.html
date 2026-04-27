@@ -2357,7 +2357,7 @@ function App() {
                 </div>
               );
             })()}
-            <div style={S.gachaCard} className={gachaAnim ? "shaking" : ""}>
+            {appMode!=="weekly_plan" && <div style={S.gachaCard} className={gachaAnim ? "shaking" : ""}>
               <button
                 style={{
                   ...S.gachaBtn,
@@ -2390,8 +2390,8 @@ function App() {
                   </button>
                 ))}
               </div>
-            </div>
-            {resultLoading && <div style={S.loadingRow}><span className="egg-wobble" style={{fontSize:18}}>🥚</span><span style={{color:"#d67850",fontSize:13}}>今日の献立を考え中…</span></div>}
+            </div>}
+            {appMode!=="weekly_plan" && resultLoading && <div style={S.loadingRow}><span className="egg-wobble" style={{fontSize:18}}>🥚</span><span style={{color:"#d67850",fontSize:13}}>今日の献立を考え中…</span></div>}
           </div>
         )}
 

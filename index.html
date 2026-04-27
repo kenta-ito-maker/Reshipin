@@ -571,6 +571,60 @@ ${isSet ? `【献立セット①】
 };
 
 
+const getTopInventory = (inv, limit=20) => {
+  return [...inv].sort((a,b) => {
+    const ea = a.expiry ? new Date(a.expiry).getTime() : Infinity;
+    const eb = b.expiry ? new Date(b.expiry).getTime() : Infinity;
+    if (ea !== eb) return ea - eb;
+    const qa = a.quantity || 0, qb = b.quantity || 0;
+    if (qa !== qb) return qb - qa;
+    return 0;
+  }).slice(0, limit);
+};
+
+const PROMPT_WEEKLY_PLAN = (days, times, dishesPerMeal, inv, useInv, preference, seasonInfo) => {
+  const invList = useInv && inv.length > 0
+    ? getTopInventory(inv).map(i => `${i.name}${i.display?" "+i.display:i.quantity?"×"+i.quantity:""}`).join("、")
+    : "なし";
+  const startDate = new Date();
+  const dateList = Array.from({length:days}, (_,i) => {
+    const d = new Date(startDate); d.setDate(d.getDate()+i);
+    return {date: d.toISOString().split("T")[0], day: ["日","月","火","水","木","金","土"][d.getDay()]};
+  });
+  return `あなたは週間献立プランナーAIです。${days}日分の献立プランを作成してください。
+
+【期間】
+${dateList.map(d => `${d.date}(${d.day})`).join("、")}
+
+【時間帯】${times.join("、")}
+【1食あたり品数】${dishesPerMeal}品
+【合計】${days * times.length}食分
+
+【在庫食材】${invList}
+${useInv ? "※在庫の食材を優先的に使い、期限が近いものから消費してください。" : ""}
+
+【季節情報】
+${seasonInfo}
+
+【こだわり】${preference || "なし"}
+
+【ルール】
+1. ${days * times.length}食分のレシピを全て提案すること。省略禁止。
+2. 各食事は${dishesPerMeal}品構成
+3. 1週間で食材が偏らないようバランスよく
+4. 旬の食材を積極的に取り入れる
+5. 同じレシピの繰り返しを避ける
+6. 平日は時短レシピ（30分以内）、週末は手の込んだものも可
+7. 調味料は材料に含めなくてよい
+8. 返答はJSON以外のテキストを一切含めないこと
+
+【出力JSON形式（厳守）】
+{"plan":[{"date":"YYYY-MM-DD","day_name":"月","meals":{"dinner":[{"name":"料理名","ingredients":[{"name":"食材","amount":"分量"}],"steps":["手順1","手順2"]}]}}]}
+
+※ mealsのキーは指定された時間帯のみ（breakfast/lunch/dinner）
+※ 各料理のstepsは3〜5ステップ`;
+};
+
 const NO_INVENTORY_TRACKING = [
   "米","ご飯","白米","玄米","ライス",
   "塩","砂糖","コショウ","胡椒","こしょう",

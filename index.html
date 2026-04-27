@@ -2083,107 +2083,6 @@ function App() {
                     </div>
                   );
                 })()}
-
-                {/* 🛒 買い物リスト */}
-                {wpResult && (() => {
-                  // 全レシピからingredientsを集計
-                  const allIngs = {};
-                  wpResult.plan.forEach(day => {
-                    Object.values(day.meals||{}).forEach(dishes => {
-                      (Array.isArray(dishes)?dishes:[]).forEach(dish => {
-                        (dish.ingredients||[]).forEach(ing => {
-                          const name = (ing.name||"").trim();
-                          if (!name) return;
-                          const amt = (ing.amount||"").trim();
-                          // 数量パース
-                          const numMatch = amt.match(/^(\d+(?:\.\d+)?)\s*(g|kg|ml|cc|個|本|切れ|枚|尾|束|パック|袋|玉|合)?/i);
-                          if (numMatch && !/適量|少々|お好み/.test(amt)) {
-                            const qty = parseFloat(numMatch[1]);
-                            const unit = (numMatch[2]||"").toLowerCase();
-                            const key = `${name}__${unit}`;
-                            if (allIngs[key]) { allIngs[key].qty += qty; }
-                            else { allIngs[key] = {name, qty, unit, display: null}; }
-                          } else {
-                            const key = `${name}__misc`;
-                            if (!allIngs[key]) allIngs[key] = {name, qty:null, unit:"", display: amt||"適量"};
-                          }
-                        });
-                      });
-                    });
-                  });
-                  // 在庫チェック
-                  const invNames = inventory.map(i => i.name);
-                  const items = Object.values(allIngs).map(it => ({
-                    ...it,
-                    inStock: invNames.includes(it.name),
-                    displayAmt: it.display || (it.qty != null ? `${it.qty}${it.unit}` : "適量"),
-                  }));
-                  // カテゴリ分類
-                  const catKeywords = {
-                    "🥩 肉・魚介": /鶏|豚|牛|肉|ひき肉|ミンチ|ベーコン|ハム|ソーセージ|ウインナー|鮭|サーモン|鯖|サバ|鯛|えび|エビ|海老|いか|イカ|たこ|タコ|魚|アジ|イワシ|マグロ|ブリ|サンマ|ホタテ|ホタルイカ|しらす|カツオ/,
-                    "🥬 野菜・果物": /玉ねぎ|たまねぎ|キャベツ|きゃべつ|レタス|白菜|ほうれん草|小松菜|水菜|大葉|しそ|にら|トマト|とまと|なす|ナス|ピーマン|パプリカ|きゅうり|にんじん|人参|大根|ごぼう|ねぎ|ネギ|じゃがいも|さつまいも|里芋|かぼちゃ|ブロッコリー|アスパラ|枝豆|とうもろこし|オクラ|れんこん|かぶ|もやし|しめじ|えのき|しいたけ|まいたけ|エリンギ|きのこ|バナナ|りんご|レモン|みかん|いちご|アボカド|たけのこ|春菊|菜の花/,
-                    "🧂 調味料・乾物": /醤油|しょうゆ|みりん|酒|酢|塩|砂糖|味噌|みそ|油|オリーブ|ごま油|マヨ|ケチャ|ソース|コンソメ|だし|ほんだし|鶏ガラ|めんつゆ|白だし|ポン酢|片栗粉|小麦粉|パン粉|ごま|わかめ|のり|昆布|かつお節|乾燥/,
-                    "🥚 卵・乳製品": /卵|たまご|タマゴ|玉子|牛乳|ミルク|チーズ|バター|ヨーグルト|生クリーム|豆腐|とうふ|油揚げ|厚揚げ|納豆/,
-                    "🌾 主食": /米|ご飯|パスタ|うどん|そば|そうめん|中華麺|パン|食パン|もち/,
-                  };
-                  const categorize = (name) => {
-                    for (const [cat, re] of Object.entries(catKeywords)) {
-                      if (re.test(name)) return cat;
-                    }
-                    return "🍱 その他";
-                  };
-                  const grouped = {};
-                  items.forEach(it => {
-                    const cat = categorize(it.name);
-                    if (!grouped[cat]) grouped[cat] = [];
-                    grouped[cat].push(it);
-                  });
-                  // チェック状態 localStorage
-                  const storageKey = `repi_shoplist_${wpResult.plan[0]?.date||""}`;
-                  const savedChecks = (() => { try { return JSON.parse(localStorage.getItem(storageKey)||"{}"); } catch { return {}; } })();
-                  const [checks, setChecks] = React.useState(savedChecks);
-                  const toggleCheck = (key) => {
-                    setChecks(prev => {
-                      const n = {...prev, [key]: !prev[key]};
-                      localStorage.setItem(storageKey, JSON.stringify(n));
-                      return n;
-                    });
-                  };
-                  // テキストコピー
-                  const copyList = () => {
-                    const lines = Object.entries(grouped).map(([cat, its]) =>
-                      `${cat}\n${its.map(it => `${it.inStock?"✅":"☐"} ${it.name} ${it.displayAmt}${it.inStock?" (在庫あり)":""}`).join("\n")}`
-                    ).join("\n\n");
-                    navigator.clipboard?.writeText(`🛒 買い物リスト\n${lines}`);
-                    setPointToast({amount:0, reason:"買い物リストをコピーしました"}); setTimeout(()=>setPointToast(null),2000);
-                  };
-                  return (
-                    <div style={{marginTop:20}}>
-                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-                        <div style={{fontSize:16,fontWeight:700,color:"#5a4a3a",fontFamily:"'Kaisei Decol',serif"}}>🛒 買い物リスト</div>
-                        <button onClick={copyList} style={{background:"#e8f4fd",border:"1px solid #d0e4f0",borderRadius:10,padding:"6px 12px",fontSize:11,fontWeight:700,color:"#3a7ab5",cursor:"pointer",fontFamily:"inherit"}}>📋 コピー</button>
-                      </div>
-                      {Object.entries(grouped).map(([cat, its]) => (
-                        <div key={cat} style={{marginBottom:14}}>
-                          <div style={{fontSize:13,fontWeight:700,color:"#8a7563",marginBottom:6}}>{cat}</div>
-                          {its.map((it, i) => {
-                            const key = `${it.name}__${it.unit}`;
-                            const checked = checks[key] || it.inStock;
-                            return (
-                              <div key={i} onClick={() => !it.inStock && toggleCheck(key)}
-                                style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:checked?"#f5f0ea":"#fffcf7",borderRadius:10,marginBottom:4,cursor:it.inStock?"default":"pointer",opacity:checked?0.5:1,transition:"opacity 0.15s"}}>
-                                <span style={{fontSize:16,flexShrink:0}}>{checked?"✅":"☐"}</span>
-                                <span style={{flex:1,fontSize:13,color:"#5a4a3a"}}>{it.name}</span>
-                                <span style={{fontSize:12,color:"#8a7563",fontWeight:600}}>{it.displayAmt}</span>
-                                {it.inStock && <span style={{fontSize:10,color:"#78aa6e",fontWeight:700}}>在庫あり</span>}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
               </div>
             )}
             {inventory.length === 0 && appMode==="daily" && (
@@ -2357,7 +2256,7 @@ function App() {
                 </div>
               );
             })()}
-            {appMode!=="weekly_plan" && <div style={S.gachaCard} className={gachaAnim ? "shaking" : ""}>
+            <div style={S.gachaCard} className={gachaAnim ? "shaking" : ""}>
               <button
                 style={{
                   ...S.gachaBtn,
@@ -2390,8 +2289,8 @@ function App() {
                   </button>
                 ))}
               </div>
-            </div>}
-            {appMode!=="weekly_plan" && resultLoading && <div style={S.loadingRow}><span className="egg-wobble" style={{fontSize:18}}>🥚</span><span style={{color:"#d67850",fontSize:13}}>今日の献立を考え中…</span></div>}
+            </div>
+            {resultLoading && <div style={S.loadingRow}><span className="egg-wobble" style={{fontSize:18}}>🥚</span><span style={{color:"#d67850",fontSize:13}}>今日の献立を考え中…</span></div>}
           </div>
         )}
 

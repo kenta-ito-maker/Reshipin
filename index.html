@@ -1272,6 +1272,14 @@ function App() {
   const [soundOn, setSoundOnRaw] = useState(() => localStorage.getItem("repi_sound_enabled") !== "false");
   const setSoundOn = v => { setSoundOnRaw(v); localStorage.setItem("repi_sound_enabled", v ? "true" : "false"); };
   const [mealTimes, setMealTimes] = useState(new Set()); // "breakfast" | "lunch" | "dinner"
+  // 週間プラン
+  const [wpDays, setWpDays] = useState(7);
+  const [wpDishes, setWpDishes] = useState(2);
+  const [wpTimes, setWpTimes] = useState(new Set(["dinner"]));
+  const [wpPref, setWpPref] = useState("");
+  const [wpUseInv, setWpUseInv] = useState(true);
+  const [wpResult, setWpResult] = useState(null);
+  const [wpLoading, setWpLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // {id, name}
   const [volumeType, setVolumeType] = useState("simple"); // "simple" | "standard" | "hearty"
   const [pwaModal, setPwaModal] = useState(false);
@@ -1853,7 +1861,7 @@ function App() {
         {screen==="home" && (
           <div className="fade-in">
             <div style={{display:"flex",background:"#fdecd8",borderRadius:16,padding:4,marginBottom:16}}>
-              {[{key:"daily",icon:"🍳",label:"今日ごはん"},{key:"meal_prep",icon:"🥡",label:"作り置き"}].map(m => (
+              {[{key:"daily",icon:"🍳",label:"今日ごはん"},{key:"meal_prep",icon:"🥡",label:"作り置き"},{key:"weekly_plan",icon:"📅",label:"週間プラン"}].map(m => (
                 <button key={m.key} onClick={() => setAppMode(m.key)}
                   style={{flex:1,background:appMode===m.key?"#fff":"transparent",border:"none",borderRadius:12,padding:"10px 4px",cursor:"pointer",fontFamily:"inherit",boxShadow:appMode===m.key?"0 2px 6px rgba(214,120,80,0.15)":"none",transition:"all 0.2s"}}>
                   <div style={{fontSize:14,fontWeight:700,color:appMode===m.key?"#d67850":"#b89f87"}}>{m.icon} {m.label}</div>
@@ -1879,6 +1887,125 @@ function App() {
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+            {appMode==="weekly_plan" && (
+              <div className="fade-in">
+                <div style={{...S.peopleCard,marginBottom:14,flexDirection:"column",alignItems:"stretch",gap:12}}>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:700,color:"#5a4a3a",marginBottom:6}}>📅 何日分？</div>
+                    <div style={{display:"flex",gap:6}}>
+                      {[3,5,7].map(d => (
+                        <button key={d} onClick={() => setWpDays(d)}
+                          style={{flex:1,background:wpDays===d?"#d67850":"#fdecd8",color:wpDays===d?"#fff":"#8a7563",border:"none",borderRadius:12,padding:"10px 4px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{d}日</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:700,color:"#5a4a3a",marginBottom:6}}>🍽️ 1食あたり何品？</div>
+                    <div style={{display:"flex",gap:6}}>
+                      {[1,2,3].map(d => (
+                        <button key={d} onClick={() => setWpDishes(d)}
+                          style={{flex:1,background:wpDishes===d?"#d67850":"#fdecd8",color:wpDishes===d?"#fff":"#8a7563",border:"none",borderRadius:12,padding:"10px 4px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{d}品</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:700,color:"#5a4a3a",marginBottom:6}}>🕐 時間帯（複数OK）</div>
+                    <div style={{display:"flex",gap:6}}>
+                      {[{k:"breakfast",l:"🌅 朝"},{k:"lunch",l:"☀️ 昼"},{k:"dinner",l:"🌙 夜"}].map(t => {
+                        const sel = wpTimes.has(t.k);
+                        return <button key={t.k} onClick={() => setWpTimes(prev => { const n=new Set(prev); if(n.has(t.k)) n.delete(t.k); else n.add(t.k); return n; })}
+                          style={{flex:1,background:sel?"#d67850":"#fdecd8",color:sel?"#fff":"#8a7563",border:"none",borderRadius:12,padding:"10px 4px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{t.l}</button>;
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                      <div style={{fontSize:12,fontWeight:700,color:"#5a4a3a"}}>🧺 在庫を使い切る</div>
+                      <button onClick={() => setWpUseInv(!wpUseInv)}
+                        style={{background:wpUseInv?"#d67850":"#e8d8c8",border:"none",borderRadius:20,width:48,height:26,position:"relative",cursor:"pointer",transition:"background 0.2s"}}>
+                        <div style={{width:20,height:20,borderRadius:10,background:"#fff",position:"absolute",top:3,left:wpUseInv?25:3,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <DebouncedInput multiline rows={2} style={S.warmTextarea} placeholder={"こだわり（任意）\n例：和食多め、魚中心、子ども向け"} value={wpPref} onSave={setWpPref}/>
+                <button
+                  style={{...S.mainBtn,marginBottom:16,opacity:wpLoading?0.6:1}}
+                  className="main-btn"
+                  disabled={wpLoading || wpTimes.size===0}
+                  onClick={async () => {
+                    SFX.sizzleStart(); setWpLoading(true);
+                    try {
+                      const times = Array.from(wpTimes).map(t => t==="breakfast"?"朝":t==="lunch"?"昼":"夜");
+                      const prompt = PROMPT_WEEKLY_PLAN(wpDays, times, wpDishes, inventory, wpUseInv, wpPref, getSeasonalInfo());
+                      const raw = await callClaude(prompt, [{role:"user",content:[{type:"text",text:"JSONのみで返答してください。"}]}], 8000);
+                      const jsonMatch = raw.replace(/```json|```/g,"").trim().match(/\{[\s\S]*\}/);
+                      if (!jsonMatch) throw new Error("JSON not found");
+                      const parsed = JSON.parse(jsonMatch[0]);
+                      if (!parsed.plan) throw new Error("plan not found");
+                      // DB保存
+                      const startDate = parsed.plan[0]?.date || new Date().toISOString().split("T")[0];
+                      const endDate = parsed.plan[parsed.plan.length-1]?.date || startDate;
+                      await sbFetch("/api/weekly-plan", {method:"POST", body: JSON.stringify({
+                        user_id: getUserId(), start_date: startDate, end_date: endDate,
+                        config: {days:wpDays, dishes:wpDishes, times:Array.from(wpTimes), useInv:wpUseInv, pref:wpPref},
+                        recipes: parsed
+                      })});
+                      setWpResult(parsed);
+                      SFX.sizzleStop(); SFX.dishReady();
+                    } catch(e) { console.error("weekly plan error:", e); SFX.sizzleStop(); setPointToast({amount:0,reason:"プラン生成に失敗しました"}); setTimeout(()=>setPointToast(null),3000); }
+                    setWpLoading(false);
+                  }}>
+                  {wpLoading ? <span><span className="egg-wobble">🥚</span> プラン作成中…</span> : `✨ ${wpDays}日分のプランを作る`}
+                </button>
+                {wpLoading && <div style={S.loadingRow}><span className="egg-wobble" style={{fontSize:18}}>🥚</span><span style={{color:"#d67850",fontSize:13}}>AIが{wpDays}日分考え中…</span></div>}
+                {wpResult && (() => {
+                  const timeLabels = {breakfast:"🌅 朝",lunch:"☀️ 昼",dinner:"🌙 夜"};
+                  return (
+                    <div>
+                      <div style={{fontSize:16,fontWeight:700,color:"#5a4a3a",marginBottom:12,fontFamily:"'Kaisei Decol',serif"}}>
+                        📅 {wpResult.plan[0]?.date}〜{wpResult.plan[wpResult.plan.length-1]?.date} のプラン
+                      </div>
+                      {wpResult.plan.map((day, di) => (
+                        <div key={di} style={{marginBottom:14}}>
+                          <div style={{fontSize:14,fontWeight:700,color:"#d67850",marginBottom:8}}>{day.date}（{day.day_name}）</div>
+                          {Object.entries(day.meals||{}).map(([time, dishes]) => (
+                            <div key={time} style={{marginBottom:10}}>
+                              <div style={{fontSize:12,fontWeight:700,color:"#8a7563",marginBottom:4}}>{timeLabels[time]||time}</div>
+                              {(Array.isArray(dishes)?dishes:[]).map((dish, mi) => (
+                                <details key={mi} style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:14,marginBottom:6,overflow:"hidden"}}>
+                                  <summary style={{padding:"10px 14px",fontSize:13,fontWeight:700,color:"#5a4a3a",cursor:"pointer",listStyle:"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                    <span>• {dish.name}</span><span style={{fontSize:11,color:"#d67850"}}>詳細 ▼</span>
+                                  </summary>
+                                  <div style={{padding:"0 14px 12px"}}>
+                                    {dish.ingredients && (
+                                      <div style={{marginBottom:8}}>
+                                        <div style={{fontSize:11,fontWeight:700,color:"#8a7563",marginBottom:4}}>📋 材料</div>
+                                        {dish.ingredients.map((ing,j) => (
+                                          <div key={j} style={{fontSize:12,color:"#5a4a3a",padding:"2px 0"}}>{ing.name} {ing.amount||""}</div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {dish.steps && (
+                                      <div>
+                                        <div style={{fontSize:11,fontWeight:700,color:"#8a7563",marginBottom:4}}>👨‍🍳 作り方</div>
+                                        {dish.steps.map((s,j) => (
+                                          <div key={j} style={{fontSize:12,color:"#5a4a3a",padding:"2px 0",lineHeight:1.6}}>{["①","②","③","④","⑤"][j]||"・"} {s}</div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </details>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
             {inventory.length === 0 && appMode==="daily" && (

@@ -1961,7 +1961,53 @@ function App() {
                     </div>
                   </div>
                 </div>
-                <DebouncedInput multiline rows={2} style={S.warmTextarea} placeholder={"こだわり（任意）\n例：和食多め、魚中心、子ども向け"} value={wpPref} onSave={setWpPref}/>
+                {/* 冷蔵庫の中身（週間プラン用） */}
+                <div style={{marginTop:4,marginBottom:14}}>
+                  <div style={S.sectionTitle}>🧺 冷蔵庫の中身</div>
+                  <div style={S.inventoryCard} onClick={() => setScreen("update")}>
+                    {inventory.length===0
+                      ? <div style={S.inventoryEmpty}>まだからっぽだよ〜<br/><span style={{fontSize:12,color:"#c0ac98"}}>タップして食材を入れよう</span></div>
+                      : <>
+                          <div style={S.inventoryChips}>
+                            {[...inventory].sort((a,b) => { if(!a.expiry) return 1; if(!b.expiry) return -1; return new Date(a.expiry)-new Date(b.expiry); }).slice(0,8).map(i => (
+                              <div key={i.id} style={{...S.chip,borderColor:expiryColor(i.expiry)}}>{i.name}{i.display ? ` ${i.display}` : i.quantity != null ? ` ×${i.quantity}` : ""}</div>
+                            ))}
+                            {inventory.length>8 && <div style={S.chipMore}>+{inventory.length-8}件</div>}
+                          </div>
+                          <div style={S.inventoryEditHint}>タップして編集 →</div>
+                        </>
+                    }
+                  </div>
+                </div>
+                {/* お得情報（週間プラン用） */}
+                <div style={S.sectionTitle}>🏷️ お得情報（あれば）</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                  <div style={{...S.uploadBox,...(shopImages.length?S.uploadBoxFilled:{}),minHeight:80}} onClick={() => shopRef.current.click()} className="upload-box">
+                    {shopImages.length > 0
+                      ? <div style={{padding:8,width:"100%"}}>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                            {shopImages.map((img,i) => (
+                              <div key={i} style={{position:"relative",width:48,height:48}}>
+                                <img src={img.url} alt="" style={{width:48,height:48,objectFit:"cover",borderRadius:8,border:"1px solid #f0e0c8"}}/>
+                                <button onClick={(ev) => { ev.stopPropagation(); setShopImages(p => p.filter((_,j) => j!==i)); }}
+                                  style={{position:"absolute",top:-4,right:-4,background:"#fff",border:"1px solid #ddd",borderRadius:8,width:16,height:16,fontSize:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"#c0392b"}}>✕</button>
+                              </div>
+                            ))}
+                            <div style={{width:48,height:48,border:"1.5px dashed #e8c8a8",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"#d67850"}}>+</div>
+                          </div>
+                          <div style={{fontSize:10,color:"#8a7563",marginTop:4,textAlign:"center"}}>{shopImages.length}枚</div>
+                        </div>
+                      : <div style={{...S.uploadInner,padding:12,flexDirection:"column",gap:4}}>
+                          <div style={{fontSize:22}}>📄</div>
+                          <div style={{color:"#e08c3a",fontSize:12,fontWeight:600}}>チラシを撮る</div>
+                        </div>
+                    }
+                  </div>
+                  <div style={{...S.uploadBox,minHeight:80,cursor:"default"}}>
+                    <DebouncedInput multiline rows={3} style={{...S.warmTextarea,marginBottom:0,border:"none",background:"transparent",height:"100%",fontSize:12,padding:10}} placeholder={"値引き情報を入力\n例：鶏もも半額"} value={shopText} onSave={setShopText}/>
+                  </div>
+                </div>
+                <DebouncedInput multiline rows={2} style={S.warmTextarea} placeholder={"こだわり（任意）\n例：和食多め、魚中心、子ども向け、サイゼリヤ風"} value={wpPref} onSave={setWpPref}/>
                 <button
                   style={{...S.mainBtn,marginBottom:16,opacity:wpLoading?0.6:1}}
                   className="main-btn"
@@ -2073,6 +2119,7 @@ function App() {
                 </button>
               </div>
             )}
+            {appMode!=="weekly_plan" && <>
             <div style={S.sectionTitle}>🧺 冷蔵庫の中身</div>
             <div style={S.inventoryCard} onClick={() => setScreen("update")}>
               {inventory.length===0
@@ -2117,6 +2164,7 @@ function App() {
               </div>
             </div>
             <DebouncedInput multiline rows={2} style={S.warmTextarea} placeholder={"追加のリクエスト（任意）\n例：あっさり系で、和食多め、20分以内"} value={extras} onSave={setExtras}/>
+            </>}
             {appMode==="daily" && (
               <div style={{marginBottom:14}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#b89f87",marginBottom:6,letterSpacing:"0.1em"}}>いつの献立？</div>

@@ -605,11 +605,11 @@ ${tracked.map(i=>`id=${i.id} ${i.name}${i.display?" "+i.display:i.quantity!=null
 [{"id":"食材id","name":"食材名","action":"delete|reduce","reduce_by":1},...]`;
 };
 
-const callClaude = async (system, messages) => {
+const callClaude = async (system, messages, maxTokens) => {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "claude-haiku-4-5", max_tokens: 2000, system, messages }),
+    body: JSON.stringify({ model: "claude-haiku-4-5", max_tokens: maxTokens || 2000, system, messages }),
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message);

@@ -588,7 +588,7 @@ const getTopInventory = (inv, limit=20) => {
   }).slice(0, limit);
 };
 
-const PROMPT_WEEKLY_PLAN = (days, times, dishesPerMeal, inv, invMode, preference, seasonInfo) => {
+const PROMPT_WEEKLY_PLAN = (days, times, dishesPerMeal, inv, invMode, preference, seasonInfo, shopText) => {
   const invList = invMode !== "free" && inv.length > 0
     ? getTopInventory(inv).map(i => `${i.name}${i.display?" "+i.display:i.quantity?"×"+i.quantity:""}`).join("、")
     : "なし";
@@ -611,7 +611,7 @@ ${dateList.map(d => `${d.date}(${d.day})`).join("、")}
 
 【在庫食材】${invList}
 ${invInstruction}
-
+${shopText ? `\n【お得情報】次のお得情報・特売情報を可能なら活用してください：${shopText}\n` : ""}
 【季節情報】
 ${seasonInfo}
 
@@ -1970,7 +1970,7 @@ function App() {
                     SFX.sizzleStart(); setWpLoading(true);
                     try {
                       const times = Array.from(wpTimes).map(t => t==="breakfast"?"朝":t==="lunch"?"昼":"夜");
-                      const prompt = PROMPT_WEEKLY_PLAN(wpDays, times, wpDishes, inventory, wpInvMode, wpPref, getSeasonalInfo());
+                      const prompt = PROMPT_WEEKLY_PLAN(wpDays, times, wpDishes, inventory, wpInvMode, wpPref, getSeasonalInfo(), shopText);
                       const raw = await callClaude(prompt, [{role:"user",content:[{type:"text",text:"JSONのみで返答してください。"}]}], 8000);
                       const jsonMatch = raw.replace(/```json|```/g,"").trim().match(/\{[\s\S]*\}/);
                       if (!jsonMatch) throw new Error("JSON not found");

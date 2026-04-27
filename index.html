@@ -588,10 +588,13 @@ const getTopInventory = (inv, limit=20) => {
   }).slice(0, limit);
 };
 
-const PROMPT_WEEKLY_PLAN = (days, times, dishesPerMeal, inv, useInv, preference, seasonInfo) => {
-  const invList = useInv && inv.length > 0
+const PROMPT_WEEKLY_PLAN = (days, times, dishesPerMeal, inv, invMode, preference, seasonInfo) => {
+  const invList = invMode !== "free" && inv.length > 0
     ? getTopInventory(inv).map(i => `${i.name}${i.display?" "+i.display:i.quantity?"×"+i.quantity:""}`).join("、")
     : "なし";
+  const invInstruction = invMode === "fridge" ? "※在庫の食材だけで作れる献立にしてください。買い足し不要の構成で。期限が近いものから優先消費。"
+    : invMode === "shop" ? "※在庫を活用しつつ、必要なら買い足す前提でOK。期限が近いものから優先消費。"
+    : "※在庫は無視して、旬・季節・自由に提案してください。";
   const startDate = new Date();
   const dateList = Array.from({length:days}, (_,i) => {
     const d = new Date(startDate); d.setDate(d.getDate()+i);
@@ -607,7 +610,7 @@ ${dateList.map(d => `${d.date}(${d.day})`).join("、")}
 【合計】${days * times.length}食分
 
 【在庫食材】${invList}
-${useInv ? "※在庫の食材を優先的に使い、期限が近いものから消費してください。" : ""}
+${invInstruction}
 
 【季節情報】
 ${seasonInfo}
@@ -618,12 +621,13 @@ ${seasonInfo}
 A. 食材の使い回し：1食材は2〜4日に渡って登場させ、捨てる量を減らす。例：鯛1尾→1日目刺身→2日目塩焼き→3日目アラ汁。卵・キャベツ等の汎用食材は連日OK。
 B. 生もの・鮮度制約：刺身・たたき等の生魚はプラン1日目のみ。2日目以降は加熱調理（焼く・煮る・蒸す）。生肉系も同様。
 C. 献立の充実感：副菜に作り置き可能な常備菜（煮物・和え物・きんぴら等）を入れる。だし・調味ベースを共有して効率化。1日完結ではなく週単位で食材を循環させる。
+D. お店の味再現：こだわり欄にお店名・商品名（例：「サイゼリヤ風」「松屋の牛丼っぽい」「無印のキーマカレー風」）が含まれる場合、その味を家庭で再現するレシピを提案する。ただし料理名に店名・商標を直接含めず「○○風」「○○を参考にした」と表記すること。
 
 【ルール】
 1. ${days * times.length}食分を全て提案。省略禁止。
 2. 各食事${dishesPerMeal}品。食材バランスよく。旬を活用。繰り返し避ける。
 3. 平日は時短、週末は手の込んだもの可。調味料は省略可。
-4. 上記の献立設計原則A〜Cを必ず守ること。
+4. 上記の献立設計原則A〜Dを必ず守ること。
 5. 返答はJSON以外のテキスト一切禁止。
 
 【JSON形式（厳守）】
@@ -1303,7 +1307,7 @@ function App() {
   const [wpDishes, setWpDishes] = useState(2);
   const [wpTimes, setWpTimes] = useState(new Set(["dinner"]));
   const [wpPref, setWpPref] = useState("");
-  const [wpUseInv, setWpUseInv] = useState(true);
+  const [wpInvMode, setWpInvMode] = useState("shop"); // "fridge" | "shop" | "free"
   const [wpResult, setWpResult] = useState(null);
   const [wpLoading, setWpLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // {id, name}
@@ -1947,12 +1951,13 @@ function App() {
                     </div>
                   </div>
                   <div>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                      <div style={{fontSize:12,fontWeight:700,color:"#5a4a3a"}}>🧺 在庫を使い切る</div>
-                      <button onClick={() => setWpUseInv(!wpUseInv)}
-                        style={{background:wpUseInv?"#d67850":"#e8d8c8",border:"none",borderRadius:20,width:48,height:26,position:"relative",cursor:"pointer",transition:"background 0.2s"}}>
-                        <div style={{width:20,height:20,borderRadius:10,background:"#fff",position:"absolute",top:3,left:wpUseInv?25:3,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
-                      </button>
+                    <div style={{fontSize:12,fontWeight:700,color:"#5a4a3a",marginBottom:6}}>🧺 在庫モード</div>
+                    <div style={{display:"flex",gap:6}}>
+                      {[{k:"fridge",icon:"🌿",l:"在庫だけ"},{k:"shop",icon:"🛒",l:"買い物OK"},{k:"free",icon:"✨",l:"自由提案"}].map(m => {
+                        const sel = wpInvMode===m.k;
+                        return <button key={m.k} onClick={() => setWpInvMode(m.k)}
+                          style={{flex:1,background:sel?"#d67850":"#fdecd8",color:sel?"#fff":"#8a7563",border:"none",borderRadius:12,padding:"10px 4px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{m.icon} {m.l}</button>;
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1965,7 +1970,7 @@ function App() {
                     SFX.sizzleStart(); setWpLoading(true);
                     try {
                       const times = Array.from(wpTimes).map(t => t==="breakfast"?"朝":t==="lunch"?"昼":"夜");
-                      const prompt = PROMPT_WEEKLY_PLAN(wpDays, times, wpDishes, inventory, wpUseInv, wpPref, getSeasonalInfo());
+                      const prompt = PROMPT_WEEKLY_PLAN(wpDays, times, wpDishes, inventory, wpInvMode, wpPref, getSeasonalInfo());
                       const raw = await callClaude(prompt, [{role:"user",content:[{type:"text",text:"JSONのみで返答してください。"}]}], 8000);
                       const jsonMatch = raw.replace(/```json|```/g,"").trim().match(/\{[\s\S]*\}/);
                       if (!jsonMatch) throw new Error("JSON not found");
@@ -1976,7 +1981,7 @@ function App() {
                       const endDate = parsed.plan[parsed.plan.length-1]?.date || startDate;
                       await sbFetch("/api/weekly-plan", {method:"POST", body: JSON.stringify({
                         user_id: getUserId(), start_date: startDate, end_date: endDate,
-                        config: {days:wpDays, dishes:wpDishes, times:Array.from(wpTimes), useInv:wpUseInv, pref:wpPref},
+                        config: {days:wpDays, dishes:wpDishes, times:Array.from(wpTimes), invMode:wpInvMode, pref:wpPref},
                         recipes: parsed
                       })});
                       setWpResult(parsed);

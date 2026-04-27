@@ -609,20 +609,14 @@ ${seasonInfo}
 【こだわり】${preference || "なし"}
 
 【ルール】
-1. ${days * times.length}食分のレシピを全て提案すること。省略禁止。
-2. 各食事は${dishesPerMeal}品構成
-3. 1週間で食材が偏らないようバランスよく
-4. 旬の食材を積極的に取り入れる
-5. 同じレシピの繰り返しを避ける
-6. 平日は時短レシピ（30分以内）、週末は手の込んだものも可
-7. 調味料は材料に含めなくてよい
-8. 返答はJSON以外のテキストを一切含めないこと
+1. ${days * times.length}食分を全て提案。省略禁止。
+2. 各食事${dishesPerMeal}品。食材バランスよく。旬を活用。繰り返し避ける。
+3. 平日は時短、週末は手の込んだもの可。調味料は省略可。
+4. 返答はJSON以外のテキスト一切禁止。
 
-【出力JSON形式（厳守）】
+【JSON形式（厳守）】
 {"plan":[{"date":"YYYY-MM-DD","day_name":"月","meals":{"dinner":[{"name":"料理名","ingredients":[{"name":"食材","amount":"分量"}],"steps":["手順1","手順2"]}]}}]}
-
-※ mealsのキーは指定された時間帯のみ（breakfast/lunch/dinner）
-※ 各料理のstepsは3〜5ステップ`;
+※ stepsは2〜3ステップで簡潔に。ingredientsは主材料3〜5品のみ。`;
 };
 
 const NO_INVENTORY_TRACKING = [
@@ -665,8 +659,9 @@ const callClaude = async (system, messages, maxTokens) => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model: "claude-haiku-4-5", max_tokens: maxTokens || 2000, system, messages }),
   });
+  if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`);
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
+  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
   return data.content?.find(b => b.type === "text")?.text || "";
 };
 
@@ -1955,7 +1950,7 @@ function App() {
                       })});
                       setWpResult(parsed);
                       SFX.sizzleStop(); SFX.dishReady();
-                    } catch(e) { console.error("weekly plan error:", e); SFX.sizzleStop(); setPointToast({amount:0,reason:"プラン生成に失敗しました"}); setTimeout(()=>setPointToast(null),3000); }
+                    } catch(e) { console.error("weekly plan error:", e); SFX.sizzleStop(); setPointToast({amount:0,reason:`エラー: ${e.message?.slice(0,80)||"不明"}`}); setTimeout(()=>setPointToast(null),6000); }
                     setWpLoading(false);
                   }}>
                   {wpLoading ? <span><span className="egg-wobble">🥚</span> プラン作成中…</span> : `✨ ${wpDays}日分のプランを作る`}

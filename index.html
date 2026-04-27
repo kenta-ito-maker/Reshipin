@@ -571,6 +571,74 @@ ${isSet ? `【献立セット①】
 };
 
 
+const getTopInventory = (inv, limit=20) => {
+  return [...inv].sort((a,b) => {
+    const ea = a.expiry ? new Date(a.expiry).getTime() : Infinity;
+    const eb = b.expiry ? new Date(b.expiry).getTime() : Infinity;
+    if (ea !== eb) return ea - eb;
+    const qa = a.quantity || 0, qb = b.quantity || 0;
+    if (qa !== qb) return qb - qa;
+    return 0;
+  }).slice(0, limit);
+};
+
+const PROMPT_WEEKLY_PLAN = (days, times, dishesPerMeal, inv, useInv, preference, seasonInfo) => {
+  const invList = useInv && inv.length > 0
+    ? getTopInventory(inv).map(i => `${i.name}${i.display?" "+i.display:i.quantity?"×"+i.quantity:""}`).join("、")
+    : "なし";
+  const startDate = new Date();
+  const dateList = Array.from({length:days}, (_,i) => {
+    const d = new Date(startDate); d.setDate(d.getDate()+i);
+    return {date: d.toISOString().split("T")[0], day: ["日","月","火","水","木","金","土"][d.getDay()]};
+  });
+  return `あなたは週間献立プランナーAIです。${days}日分の献立プランを作成してください。
+
+【期間】
+${dateList.map(d => `${d.date}(${d.day})`).join("、")}
+
+【時間帯】${times.join("、")}
+【1食あたり品数】${dishesPerMeal}品
+【合計】${days * times.length}食分
+
+【在庫食材】${invList}
+${useInv ? "※在庫の食材を優先的に使い、期限が近いものから消費してください。" : ""}
+
+【季節情報】
+${seasonInfo}
+
+【こだわり】${preference || "なし"}
+
+【ルール】
+1. ${days * times.length}食分を全て提案。省略禁止。
+2. 各食事${dishesPerMeal}品。食材バランスよく。旬を活用。繰り返し避ける。
+3. 平日は時短、週末は手の込んだもの可。調味料は省略可。
+4. 返答はJSON以外のテキスト一切禁止。
+
+【JSON形式（厳守）】
+{"plan":[{"date":"YYYY-MM-DD","day_name":"月","meals":{"dinner":[{"name":"料理名","ingredients":[{"name":"食材","amount":"分量"}],"steps":["手順1","手順2"]}]}}]}
+※ stepsは2〜3ステップで簡潔に。ingredientsは主材料3〜5品のみ。`;
+};
+
+const SEASONAL_FOODS = {
+  1:{name:"1月（冬）",vegetables:"白菜、大根、ほうれん草、小松菜、春菊、ねぎ、かぶ、れんこん",fruits:"みかん、りんご、いちご",fish:"ブリ、タラ、カキ、ズワイガニ、アンコウ",keywords:"鍋、温かい煮物、粕汁"},
+  2:{name:"2月（冬）",vegetables:"白菜、大根、ほうれん草、菜の花、ブロッコリー、かぶ",fruits:"いちご、デコポン、金柑",fish:"ブリ、タラ、ヒラメ、ワカサギ、ホタルイカ",keywords:"鍋、グラタン、シチュー"},
+  3:{name:"3月（春）",vegetables:"菜の花、新玉ねぎ、春キャベツ、たけのこ、ふきのとう、せり",fruits:"いちご、デコポン",fish:"サワラ、ホタルイカ、しらす、アサリ、ハマグリ",keywords:"春の訪れ、山菜、ひな祭り"},
+  4:{name:"4月（春）",vegetables:"たけのこ、新玉ねぎ、春キャベツ、アスパラガス、スナップえんどう、新じゃが",fruits:"いちご",fish:"鯛、サワラ、しらす、アサリ、初ガツオ",keywords:"花見、桜、新生活"},
+  5:{name:"5月（春）",vegetables:"アスパラガス、そら豆、スナップえんどう、新じゃが、トマト、きゅうり",fruits:"メロン、びわ、さくらんぼ",fish:"初ガツオ、アジ、キス、イサキ",keywords:"端午の節句、新緑、さわやか"},
+  6:{name:"6月（夏）",vegetables:"トマト、きゅうり、なす、ズッキーニ、枝豆、とうもろこし、オクラ",fruits:"さくらんぼ、メロン、すいか、桃",fish:"アジ、イワシ、アユ、ウニ",keywords:"梅雨、さっぱり、酸味"},
+  7:{name:"7月（夏）",vegetables:"トマト、きゅうり、なす、ゴーヤ、枝豆、とうもろこし、ピーマン",fruits:"すいか、桃、マンゴー、ブルーベリー",fish:"アジ、ウナギ、ハモ、アワビ",keywords:"夏バテ防止、冷たい麺、BBQ"},
+  8:{name:"8月（夏）",vegetables:"トマト、なす、ゴーヤ、モロヘイヤ、みょうが、オクラ",fruits:"すいか、桃、ぶどう、梨",fish:"スズキ、タコ、サザエ、イカ",keywords:"スタミナ、冷製、素麺"},
+  9:{name:"9月（秋）",vegetables:"さつまいも、里芋、きのこ類、なす、かぼちゃ、ごぼう",fruits:"ぶどう、梨、栗、いちじく",fish:"サンマ、戻りガツオ、サバ、鮭",keywords:"秋の味覚、お月見、実り"},
+  10:{name:"10月（秋）",vegetables:"さつまいも、里芋、きのこ類、かぼちゃ、ごぼう、れんこん",fruits:"柿、栗、りんご、みかん",fish:"サンマ、鮭、サバ、牡蠣",keywords:"収穫祭、ハロウィン、秋深まる"},
+  11:{name:"11月（秋）",vegetables:"白菜、大根、ほうれん草、春菊、れんこん、ごぼう、里芋",fruits:"柿、りんご、みかん、洋梨",fish:"ブリ、タラ、カキ、ヒラメ",keywords:"鍋始め、紅葉、晩秋"},
+  12:{name:"12月（冬）",vegetables:"白菜、大根、ほうれん草、小松菜、ねぎ、かぶ、春菊",fruits:"みかん、りんご、ゆず",fish:"ブリ、タラ、カニ、フグ、牡蠣",keywords:"年末、クリスマス、鍋、おでん"},
+};
+const getSeasonalInfo = () => {
+  const m = new Date().getMonth() + 1;
+  const s = SEASONAL_FOODS[m];
+  return `季節：${s.name}\n旬の食材：【野菜】${s.vegetables}【果物】${s.fruits}【魚介】${s.fish}\n季節のキーワード：${s.keywords}`;
+};
+
 const NO_INVENTORY_TRACKING = [
   "米","ご飯","白米","玄米","ライス",
   "塩","砂糖","コショウ","胡椒","こしょう",
@@ -605,14 +673,15 @@ ${tracked.map(i=>`id=${i.id} ${i.name}${i.display?" "+i.display:i.quantity!=null
 [{"id":"食材id","name":"食材名","action":"delete|reduce","reduce_by":1},...]`;
 };
 
-const callClaude = async (system, messages) => {
+const callClaude = async (system, messages, maxTokens) => {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "claude-haiku-4-5", max_tokens: 2000, system, messages }),
+    body: JSON.stringify({ model: "claude-haiku-4-5", max_tokens: maxTokens || 2000, system, messages }),
   });
+  if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`);
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
+  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
   return data.content?.find(b => b.type === "text")?.text || "";
 };
 
@@ -1218,6 +1287,14 @@ function App() {
   const [soundOn, setSoundOnRaw] = useState(() => localStorage.getItem("repi_sound_enabled") !== "false");
   const setSoundOn = v => { setSoundOnRaw(v); localStorage.setItem("repi_sound_enabled", v ? "true" : "false"); };
   const [mealTimes, setMealTimes] = useState(new Set()); // "breakfast" | "lunch" | "dinner"
+  // 週間プラン
+  const [wpDays, setWpDays] = useState(7);
+  const [wpDishes, setWpDishes] = useState(2);
+  const [wpTimes, setWpTimes] = useState(new Set(["dinner"]));
+  const [wpPref, setWpPref] = useState("");
+  const [wpUseInv, setWpUseInv] = useState(true);
+  const [wpResult, setWpResult] = useState(null);
+  const [wpLoading, setWpLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // {id, name}
   const [volumeType, setVolumeType] = useState("simple"); // "simple" | "standard" | "hearty"
   const [pwaModal, setPwaModal] = useState(false);
@@ -1799,7 +1876,7 @@ function App() {
         {screen==="home" && (
           <div className="fade-in">
             <div style={{display:"flex",background:"#fdecd8",borderRadius:16,padding:4,marginBottom:16}}>
-              {[{key:"daily",icon:"🍳",label:"今日ごはん"},{key:"meal_prep",icon:"🥡",label:"作り置き"}].map(m => (
+              {[{key:"daily",icon:"🍳",label:"今日ごはん"},{key:"meal_prep",icon:"🥡",label:"作り置き"},{key:"weekly_plan",icon:"📅",label:"週間プラン"}].map(m => (
                 <button key={m.key} onClick={() => setAppMode(m.key)}
                   style={{flex:1,background:appMode===m.key?"#fff":"transparent",border:"none",borderRadius:12,padding:"10px 4px",cursor:"pointer",fontFamily:"inherit",boxShadow:appMode===m.key?"0 2px 6px rgba(214,120,80,0.15)":"none",transition:"all 0.2s"}}>
                   <div style={{fontSize:14,fontWeight:700,color:appMode===m.key?"#d67850":"#b89f87"}}>{m.icon} {m.label}</div>
@@ -1825,6 +1902,125 @@ function App() {
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+            {appMode==="weekly_plan" && (
+              <div className="fade-in">
+                <div style={{...S.peopleCard,marginBottom:14,flexDirection:"column",alignItems:"stretch",gap:12}}>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:700,color:"#5a4a3a",marginBottom:6}}>📅 何日分？</div>
+                    <div style={{display:"flex",gap:6}}>
+                      {[3,5,7].map(d => (
+                        <button key={d} onClick={() => setWpDays(d)}
+                          style={{flex:1,background:wpDays===d?"#d67850":"#fdecd8",color:wpDays===d?"#fff":"#8a7563",border:"none",borderRadius:12,padding:"10px 4px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{d}日</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:700,color:"#5a4a3a",marginBottom:6}}>🍽️ 1食あたり何品？</div>
+                    <div style={{display:"flex",gap:6}}>
+                      {[1,2,3].map(d => (
+                        <button key={d} onClick={() => setWpDishes(d)}
+                          style={{flex:1,background:wpDishes===d?"#d67850":"#fdecd8",color:wpDishes===d?"#fff":"#8a7563",border:"none",borderRadius:12,padding:"10px 4px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{d}品</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:700,color:"#5a4a3a",marginBottom:6}}>🕐 時間帯（複数OK）</div>
+                    <div style={{display:"flex",gap:6}}>
+                      {[{k:"breakfast",l:"🌅 朝"},{k:"lunch",l:"☀️ 昼"},{k:"dinner",l:"🌙 夜"}].map(t => {
+                        const sel = wpTimes.has(t.k);
+                        return <button key={t.k} onClick={() => setWpTimes(prev => { const n=new Set(prev); if(n.has(t.k)) n.delete(t.k); else n.add(t.k); return n; })}
+                          style={{flex:1,background:sel?"#d67850":"#fdecd8",color:sel?"#fff":"#8a7563",border:"none",borderRadius:12,padding:"10px 4px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{t.l}</button>;
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                      <div style={{fontSize:12,fontWeight:700,color:"#5a4a3a"}}>🧺 在庫を使い切る</div>
+                      <button onClick={() => setWpUseInv(!wpUseInv)}
+                        style={{background:wpUseInv?"#d67850":"#e8d8c8",border:"none",borderRadius:20,width:48,height:26,position:"relative",cursor:"pointer",transition:"background 0.2s"}}>
+                        <div style={{width:20,height:20,borderRadius:10,background:"#fff",position:"absolute",top:3,left:wpUseInv?25:3,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <DebouncedInput multiline rows={2} style={S.warmTextarea} placeholder={"こだわり（任意）\n例：和食多め、魚中心、子ども向け"} value={wpPref} onSave={setWpPref}/>
+                <button
+                  style={{...S.mainBtn,marginBottom:16,opacity:wpLoading?0.6:1}}
+                  className="main-btn"
+                  disabled={wpLoading || wpTimes.size===0}
+                  onClick={async () => {
+                    SFX.sizzleStart(); setWpLoading(true);
+                    try {
+                      const times = Array.from(wpTimes).map(t => t==="breakfast"?"朝":t==="lunch"?"昼":"夜");
+                      const prompt = PROMPT_WEEKLY_PLAN(wpDays, times, wpDishes, inventory, wpUseInv, wpPref, getSeasonalInfo());
+                      const raw = await callClaude(prompt, [{role:"user",content:[{type:"text",text:"JSONのみで返答してください。"}]}], 8000);
+                      const jsonMatch = raw.replace(/```json|```/g,"").trim().match(/\{[\s\S]*\}/);
+                      if (!jsonMatch) throw new Error("JSON not found");
+                      const parsed = JSON.parse(jsonMatch[0]);
+                      if (!parsed.plan) throw new Error("plan not found");
+                      // DB保存
+                      const startDate = parsed.plan[0]?.date || new Date().toISOString().split("T")[0];
+                      const endDate = parsed.plan[parsed.plan.length-1]?.date || startDate;
+                      await sbFetch("/api/weekly-plan", {method:"POST", body: JSON.stringify({
+                        user_id: getUserId(), start_date: startDate, end_date: endDate,
+                        config: {days:wpDays, dishes:wpDishes, times:Array.from(wpTimes), useInv:wpUseInv, pref:wpPref},
+                        recipes: parsed
+                      })});
+                      setWpResult(parsed);
+                      SFX.sizzleStop(); SFX.dishReady();
+                    } catch(e) { console.error("weekly plan error:", e); SFX.sizzleStop(); setPointToast({amount:0,reason:`エラー: ${e.message?.slice(0,80)||"不明"}`}); setTimeout(()=>setPointToast(null),6000); }
+                    setWpLoading(false);
+                  }}>
+                  {wpLoading ? <span><span className="egg-wobble">🥚</span> プラン作成中…</span> : `✨ ${wpDays}日分のプランを作る`}
+                </button>
+                {wpLoading && <div style={S.loadingRow}><span className="egg-wobble" style={{fontSize:18}}>🥚</span><span style={{color:"#d67850",fontSize:13}}>AIが{wpDays}日分考え中…</span></div>}
+                {wpResult && (() => {
+                  const timeLabels = {breakfast:"🌅 朝",lunch:"☀️ 昼",dinner:"🌙 夜"};
+                  return (
+                    <div>
+                      <div style={{fontSize:16,fontWeight:700,color:"#5a4a3a",marginBottom:12,fontFamily:"'Kaisei Decol',serif"}}>
+                        📅 {wpResult.plan[0]?.date}〜{wpResult.plan[wpResult.plan.length-1]?.date} のプラン
+                      </div>
+                      {wpResult.plan.map((day, di) => (
+                        <div key={di} style={{marginBottom:14}}>
+                          <div style={{fontSize:14,fontWeight:700,color:"#d67850",marginBottom:8}}>{day.date}（{day.day_name}）</div>
+                          {Object.entries(day.meals||{}).map(([time, dishes]) => (
+                            <div key={time} style={{marginBottom:10}}>
+                              <div style={{fontSize:12,fontWeight:700,color:"#8a7563",marginBottom:4}}>{timeLabels[time]||time}</div>
+                              {(Array.isArray(dishes)?dishes:[]).map((dish, mi) => (
+                                <details key={mi} style={{background:"#fffcf7",border:"1.5px solid #f0e0c8",borderRadius:14,marginBottom:6,overflow:"hidden"}}>
+                                  <summary style={{padding:"10px 14px",fontSize:13,fontWeight:700,color:"#5a4a3a",cursor:"pointer",listStyle:"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                    <span>• {dish.name}</span><span style={{fontSize:11,color:"#d67850"}}>詳細 ▼</span>
+                                  </summary>
+                                  <div style={{padding:"0 14px 12px"}}>
+                                    {dish.ingredients && (
+                                      <div style={{marginBottom:8}}>
+                                        <div style={{fontSize:11,fontWeight:700,color:"#8a7563",marginBottom:4}}>📋 材料</div>
+                                        {dish.ingredients.map((ing,j) => (
+                                          <div key={j} style={{fontSize:12,color:"#5a4a3a",padding:"2px 0"}}>{ing.name} {ing.amount||""}</div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {dish.steps && (
+                                      <div>
+                                        <div style={{fontSize:11,fontWeight:700,color:"#8a7563",marginBottom:4}}>👨‍🍳 作り方</div>
+                                        {dish.steps.map((s,j) => (
+                                          <div key={j} style={{fontSize:12,color:"#5a4a3a",padding:"2px 0",lineHeight:1.6}}>{["①","②","③","④","⑤"][j]||"・"} {s}</div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </details>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
             {inventory.length === 0 && appMode==="daily" && (

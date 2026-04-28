@@ -2470,7 +2470,7 @@ function App() {
               <div style={{marginBottom:14}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#b89f87",marginBottom:6,letterSpacing:"0.1em"}}>ボリューム</div>
                 <div style={{display:"flex",gap:8}}>
-                  {[{key:"simple",icon:"💨",label:"簡単",disabled:true},{key:"standard",icon:"🍱",label:"標準",disabled:true},{key:"hearty",icon:"🎊",label:"がっつり",disabled:false}].map(v => {
+                  {[{key:"simple",icon:"🍴",label:"1品",disabled:true},{key:"standard",icon:"🍴🥗",label:"2品",disabled:true},{key:"hearty",icon:"🍴🥗🍲",label:"3品",disabled:false}].map(v => {
                     const sel = volumeType===v.key;
                     return (
                       <button key={v.key} onClick={() => !v.disabled && setVolumeType(v.key)} disabled={v.disabled}
@@ -2480,7 +2480,7 @@ function App() {
                     );
                   })}
                 </div>
-                <div style={{fontSize:10,color:"#c0ac98",marginTop:4}}>※ 現在「がっつり（主菜+副菜+汁物）」のみご利用いただけます</div>
+                <div style={{fontSize:10,color:"#c0ac98",marginTop:4}}>※ 現在「3品（主菜+副菜+汁物）」のみご利用いただけます。他の構成は近日対応予定</div>
               </div>
             )}
             {appMode==="daily" && (() => {

@@ -1562,7 +1562,7 @@ function App() {
   const [wpResult, setWpResult] = useState(null);
   const [wpLoading, setWpLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // {id, name}
-  const [volumeType, setVolumeType] = useState("simple"); // "simple" | "standard" | "hearty"
+  const [volumeType, setVolumeType] = useState("hearty"); // "simple" | "standard" | "hearty"
   const [pwaModal, setPwaModal] = useState(false);
   const [pwaBanner, setPwaBanner] = useState(false);
   const [savedRecipes, setSavedRecipes] = useState([]);
@@ -2470,16 +2470,17 @@ function App() {
               <div style={{marginBottom:14}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#b89f87",marginBottom:6,letterSpacing:"0.1em"}}>ボリューム</div>
                 <div style={{display:"flex",gap:8}}>
-                  {[{key:"simple",icon:"💨",label:"簡単"},{key:"standard",icon:"🍱",label:"標準"},{key:"hearty",icon:"🎊",label:"がっつり"}].map(v => {
+                  {[{key:"simple",icon:"💨",label:"簡単",disabled:true},{key:"standard",icon:"🍱",label:"標準",disabled:true},{key:"hearty",icon:"🎊",label:"がっつり",disabled:false}].map(v => {
                     const sel = volumeType===v.key;
                     return (
-                      <button key={v.key} onClick={() => setVolumeType(v.key)}
-                        style={{flex:1,background:sel?"#d67850":"#fdecd8",border:`1.5px solid ${sel?"#d67850":"#f0d8b8"}`,borderRadius:14,padding:"10px 4px",fontSize:13,fontWeight:700,color:sel?"#fff":"#8a7563",cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
+                      <button key={v.key} onClick={() => !v.disabled && setVolumeType(v.key)} disabled={v.disabled}
+                        style={{flex:1,background:sel?"#d67850":v.disabled?"#f0ebe3":"#fdecd8",border:`1.5px solid ${sel?"#d67850":"#f0d8b8"}`,borderRadius:14,padding:"10px 4px",fontSize:13,fontWeight:700,color:sel?"#fff":v.disabled?"#c0ac98":"#8a7563",cursor:v.disabled?"not-allowed":"pointer",fontFamily:"inherit",transition:"all 0.15s",opacity:v.disabled?0.6:1}}>
                         {v.icon} {v.label}
                       </button>
                     );
                   })}
                 </div>
+                <div style={{fontSize:10,color:"#c0ac98",marginTop:4}}>※ 現在「がっつり（主菜+副菜+汁物）」のみご利用いただけます</div>
               </div>
             )}
             {appMode==="daily" && (() => {

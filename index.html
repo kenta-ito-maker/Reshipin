@@ -1057,19 +1057,29 @@ const ParsedRecipe = ({ content }) => {
     return <div style={{fontSize:13,color:"#5a4a3a",lineHeight:2.1,whiteSpace:"pre-wrap"}}>{content.replace(/【[^】]+】/,"").trim()}</div>;
   }
 
+  // 複数料理（セット）なら独立カード表示
+  const isMultiDish = sections.length > 1 && sections[0].kind === "dish";
+
   return (
     <div>
       {sections.map((sec, i) => (
-        <div key={i} style={{marginBottom:i < sections.length - 1 ? 22 : 4}}>
+        <div key={i} style={isMultiDish ? {background:"#faf8f4",border:"1.5px solid #f0e0c8",borderRadius:16,padding:"14px 16px",marginBottom:i < sections.length - 1 ? 12 : 4} : {marginBottom:i < sections.length - 1 ? 22 : 4}}>
           {sec.header && (
-            <div style={{fontSize:15,fontWeight:700,color:"#5a4a3a",marginBottom:12,fontFamily:"'Kaisei Decol',serif"}}>
-              {sec.header}
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+              <div style={{fontSize:15,fontWeight:700,color:"#5a4a3a",fontFamily:"'Kaisei Decol',serif",flex:1}}>
+                {sec.header.replace(/^(🥘|🥗|🍲)\s*/,"")}
+              </div>
+              {sec.header.match(/主菜|副菜|汁物/) && (
+                <span style={{fontSize:10,background:"#fdecd8",color:"#d67850",borderRadius:10,padding:"2px 8px",fontWeight:700,flexShrink:0}}>
+                  {sec.header.match(/(主菜|副菜|汁物)/)?.[1]||""}
+                </span>
+              )}
             </div>
           )}
           {sec.ingredients.length > 0 && (
             <div style={{marginBottom:14}}>
               <div style={{fontSize:12,fontWeight:700,color:"#8a7563",marginBottom:8,letterSpacing:"0.08em"}}>📋 材料</div>
-              <div style={{background:"#fdf9f0",borderRadius:12,padding:"12px 16px"}}>
+              <div style={{background:isMultiDish?"rgba(255,255,255,0.7)":"#fdf9f0",borderRadius:12,padding:"12px 16px"}}>
                 {sec.ingredients.map((ing, j) => (
                   <div key={j} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"5px 0",borderBottom:j < sec.ingredients.length - 1 ? "1px dashed #f0e0c8" : "none",fontSize:13,color:"#5a4a3a"}}>
                     <span>{ing.name}</span>
@@ -1085,7 +1095,7 @@ const ParsedRecipe = ({ content }) => {
               <div>
                 {sec.steps.map((step, j) => (
                   <div key={j} style={{display:"flex",gap:10,marginBottom:8,fontSize:13,color:"#5a4a3a",lineHeight:1.7}}>
-                    <span style={{flexShrink:0,fontSize:14,fontWeight:700,color:"#d67850"}}>{step.match(/^[①②③④⑤⑥⑦⑧⑨⑩]/)?.[0] || ""}</span>
+                    <span style={{flexShrink:0,fontSize:14,fontWeight:700,color:"#d67850"}}>{["①","②","③","④","⑤","⑥"][j]||"・"}</span>
                     <span style={{flex:1}}>{step.replace(/^[①②③④⑤⑥⑦⑧⑨⑩]\s*/, "")}</span>
                   </div>
                 ))}

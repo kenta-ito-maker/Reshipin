@@ -2544,12 +2544,12 @@ function App() {
                 {gachaAnim ? (
                   <span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
                     <span className="capsule-pop">🥚</span>
-                    <span>{appMode==="meal_prep"?"作り置きレシピを考え中…":"今日の一択を導き出しています…"}</span>
+                    <span>{appMode==="meal_prep"?"作り置きレシピを考え中…":"今日の献立を考えています…"}</span>
                   </span>
                 ) : (
                   <span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
                     <span style={{fontSize:22}}>{appMode==="meal_prep"?"🥡":"✨"}</span>
-                    <span>{appMode==="meal_prep"?`AIに${prepDays}日分の作り置きをおまかせ`:"AIに「今日の一択」をおまかせする"}</span>
+                    <span>{appMode==="meal_prep"?`AIに${prepDays}日分の作り置きをおまかせ`:"AIに献立をおまかせする"}</span>
                   </span>
                 )}
               </button>
@@ -2576,7 +2576,7 @@ function App() {
           <div className="fade-in">
             <button onClick={() => setScreen("home")} style={{background:"none",border:"none",color:"#d67850",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",padding:"4px 0",marginBottom:8}}>◀ 条件入力に戻る</button>
             <div style={S.resultHeaderWrap}>
-              <div style={S.resultTitleBig}>{appMode==="meal_prep"?"🥡 今週の作り置き":gachaMode==="free"?"✨ 新しい料理との出会い":"🍳 今日の一択"}</div>
+              <div style={S.resultTitleBig}>{appMode==="meal_prep"?"🥡 今週の作り置き":gachaMode==="free"?"✨ 新しい料理との出会い":"🍳 今日の献立"}</div>
               <div style={S.resultMeta}>{appMode==="meal_prep"?`${prepDays}日分・おかず3品・`:""}{people}人分 · {new Date().toLocaleDateString("ja-JP",{month:"long",day:"numeric",weekday:"short"})}</div>
             </div>
 

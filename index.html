@@ -2032,19 +2032,23 @@ function App() {
         content = [{type:"text",text:userText}];
       } else {
         const isFridgeOnly = mode === "fridge";
-        const vMode = volumeType === "hearty" ? "set" : "single";
-        const promptFn = vMode === "set" ? PROMPT_KONDATE_SET : PROMPT_KONDATE_SINGLE;
-        sysPrompt = isFridgeOnly
-          ? promptFn(inventory, "※在庫にある食材だけで作れる献立を提案してください。買い物不要のものだけ。", people, familyNote, allExtras)
-          : promptFn(inventory, shopText || "特売・値引き情報なし", people, familyNote, allExtras);
-        const userText = vMode === "set"
-          ? "{\"recipes\":[...]}の形式で3セット出力してください。最初の文字は{、最後は}。Markdown禁止。"
-          : (isFridgeOnly ? "在庫にある食材だけで1品料理を3つ提案してください。" : "在庫と特売情報から1品料理を3つ提案してください。");
-        content = !isFridgeOnly && shopImages.length > 0
-          ? [...shopImages.map(img => ({type:"image",source:{type:"base64",media_type:"image/jpeg",data:img.b64}})),{type:"text",text:`チラシ写真${shopImages.length}枚。このチラシに載っている特売食材を積極的に使った献立を提案してください。補足：${shopText||"なし"}\n\n${userText}`}]
-          : [{type:"text",text:userText}];
+        const useJson = volumeType === "hearty" || volumeType === "standard"; // 2品以上はJSON
+        if (useJson) {
+          sysPrompt = PROMPT_KONDATE_SET(inventory, isFridgeOnly ? "※在庫だけで。" : (shopText || "特売・値引き情報なし"), people, familyNote, allExtras);
+          const dishCount = volumeType === "hearty" ? "主菜+副菜+汁物の3品" : "主菜+副菜の2品";
+          const userText = `{\"recipes\":[...]}の形式で3セット出力。各セットは${dishCount}構成。最初の文字は{、最後は}。Markdown禁止。`;
+          content = !isFridgeOnly && shopImages.length > 0
+            ? [...shopImages.map(img => ({type:"image",source:{type:"base64",media_type:"image/jpeg",data:img.b64}})),{type:"text",text:`チラシ写真。補足：${shopText||"なし"}\n\n${userText}`}]
+            : [{type:"text",text:userText}];
+        } else {
+          sysPrompt = PROMPT_KONDATE_SINGLE(inventory, isFridgeOnly ? "※在庫だけで。" : (shopText || "特売・値引き情報なし"), people, familyNote, allExtras);
+          const userText = isFridgeOnly ? "在庫にある食材だけで1品料理を3つ提案してください。" : "在庫と特売情報から1品料理を3つ提案してください。";
+          content = !isFridgeOnly && shopImages.length > 0
+            ? [...shopImages.map(img => ({type:"image",source:{type:"base64",media_type:"image/jpeg",data:img.b64}})),{type:"text",text:`チラシ写真。補足：${shopText||"なし"}\n\n${userText}`}]
+            : [{type:"text",text:userText}];
+        }
       }
-      const vMode2 = (appMode === "meal_prep" || appMode === "weekly_plan") ? null : (volumeType === "hearty" ? "set" : "single");
+      const vMode2 = (appMode === "meal_prep" || appMode === "weekly_plan") ? null : (volumeType !== "simple" ? "set" : "single");
       const maxTok = vMode2 === "set" ? 6000 : 2000;
       const text = await callClaude(sysPrompt, [{role:"user",content}], maxTok);
       await new Promise(r => setTimeout(r, 1200));
@@ -2611,7 +2615,7 @@ function App() {
                                 {dishes.filter(d => d !== mainDish).length > 0 && (
                                   <div style={{fontSize:12,color:"#8a7563",marginBottom:4}}>{dishes.filter(d => d !== mainDish).map(d => d.name).filter(Boolean).join(" / ")}</div>
                                 )}
-                                <span style={{fontSize:11,background:"#fdecd8",color:"#d67850",borderRadius:20,padding:"3px 12px",fontWeight:600}}>主菜+副菜+汁物</span>
+                                <span style={{fontSize:11,background:"#fdecd8",color:"#d67850",borderRadius:20,padding:"3px 12px",fontWeight:600}}>{dishes.map(d=>d.role).filter(Boolean).join("+")}</span>
                               </div>
                               <div style={{fontSize:20,color:"#d67850",marginLeft:12}}>▼</div>
                             </summary>

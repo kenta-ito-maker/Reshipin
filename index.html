@@ -1008,21 +1008,27 @@ const ParsedRecipe = ({ content }) => {
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
-    // セット内の料理見出し
-    if (/^(🥘|🥗|🍲)\s*(主菜|副菜|汁物)\s*[:：]/.test(line)) {
+    // セット内の料理見出し（多様なパターンに対応）
+    if (/^(🥘|🥗|🍲)\s*(主菜|副菜|汁物)\s*[:：]/.test(line) ||
+        /^(主菜|副菜|汁物)\s*[:：]/.test(line) ||
+        /^\*\*(主菜|副菜|汁物)\*\*/.test(line) ||
+        /^###?\s*(🥘|🥗|🍲)?\s*(主菜|副菜|汁物)/.test(line)) {
       if (current) sections.push(current);
-      current = { kind: "dish", header: line, ingredients: [], steps: [] };
+      const roleMatch = line.match(/(主菜|副菜|汁物)/);
+      const nameMatch = line.match(/[:：]\s*(.+)/);
+      const icon = roleMatch?.[1]==="主菜"?"🥘":roleMatch?.[1]==="副菜"?"🥗":"🍲";
+      current = { kind: "dish", header: `${icon} ${roleMatch?.[1]||""}：${nameMatch?.[1]||""}`, role: roleMatch?.[1]||"", dishName: nameMatch?.[1]?.trim()||"", ingredients: [], steps: [] };
       mode = null;
       continue;
     }
     // 材料セクションへ
-    if (/^📋|^材料/.test(line)) {
+    if (/^📋|^材料|^\*\*材料/.test(line)) {
       if (!current) current = { kind: "single", header: null, ingredients: [], steps: [] };
       mode = "ingredients";
       continue;
     }
     // 作り方セクションへ
-    if (/^👨‍🍳|^作り方/.test(line)) {
+    if (/^👨‍🍳|^作り方|^\*\*作り方/.test(line)) {
       if (!current) current = { kind: "single", header: null, ingredients: [], steps: [] };
       mode = "steps";
       continue;
@@ -1033,17 +1039,18 @@ const ParsedRecipe = ({ content }) => {
       mode = "comment";
       continue;
     }
-    // 食材行
-    if (mode === "ingredients" && /^[・·•]/.test(line)) {
-      const m = line.replace(/^[・·•]\s*/, "").split(/\s*\.{2,}\s*|\s+\.\.\.\s+|\s{2,}/);
-      const name = m[0] || line.replace(/^[・·•]\s*/, "");
+    // 食材行（・で始まる、または - で始まる）
+    if (mode === "ingredients" && /^[・·•\-]/.test(line)) {
+      const cleaned = line.replace(/^[・·•\-]\s*/, "");
+      const m = cleaned.split(/\s*\.{2,}\s*|\s+\.\.\.\s+|\s{2,}/);
+      const name = m[0] || cleaned;
       const qty = m.slice(1).join(" ").trim();
       if (!current) current = { kind: "single", header: null, ingredients: [], steps: [] };
       current.ingredients.push({ name: name.trim(), qty });
       continue;
     }
-    // 手順行
-    if (mode === "steps" && /^[①②③④⑤⑥⑦⑧⑨⑩]/.test(line)) {
+    // 手順行（①〜⑩ または 1. 2. 等）
+    if (mode === "steps" && (/^[①②③④⑤⑥⑦⑧⑨⑩]/.test(line) || /^\d+[\.\)]\s/.test(line))) {
       if (!current) current = { kind: "single", header: null, ingredients: [], steps: [] };
       current.steps.push(line);
       continue;
@@ -1064,14 +1071,15 @@ const ParsedRecipe = ({ content }) => {
     <div>
       {sections.map((sec, i) => (
         <div key={i} style={isMultiDish ? {background:"#faf8f4",border:"1.5px solid #f0e0c8",borderRadius:16,padding:"14px 16px",marginBottom:i < sections.length - 1 ? 12 : 4} : {marginBottom:i < sections.length - 1 ? 22 : 4}}>
-          {sec.header && (
+          {(sec.dishName || sec.header) && (
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+              <span style={{fontSize:16}}>{sec.role==="主菜"?"🥘":sec.role==="副菜"?"🥗":sec.role==="汁物"?"🍲":"🍴"}</span>
               <div style={{fontSize:15,fontWeight:700,color:"#5a4a3a",fontFamily:"'Kaisei Decol',serif",flex:1}}>
-                {sec.header.replace(/^(🥘|🥗|🍲)\s*/,"")}
+                {sec.dishName || sec.header?.replace(/^(🥘|🥗|🍲)\s*(主菜|副菜|汁物)\s*[:：]\s*/,"") || ""}
               </div>
-              {sec.header.match(/主菜|副菜|汁物/) && (
+              {sec.role && (
                 <span style={{fontSize:10,background:"#fdecd8",color:"#d67850",borderRadius:10,padding:"2px 8px",fontWeight:700,flexShrink:0}}>
-                  {sec.header.match(/(主菜|副菜|汁物)/)?.[1]||""}
+                  {sec.role}
                 </span>
               )}
             </div>
@@ -2026,6 +2034,7 @@ function App() {
       const maxTok = vMode2 === "set" ? 6000 : 2000;
       const text = await callClaude(sysPrompt, [{role:"user",content}], maxTok);
       await new Promise(r => setTimeout(r, 1200));
+      console.log("[analyze] AI response:", text.slice(0,300));
       setResult(text);
       let parsedBlocks;
       // SET mode: JSON response → dishes配列

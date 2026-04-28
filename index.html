@@ -2050,8 +2050,12 @@ function App() {
           const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
-            console.log("[analyze] JSON parsed successfully, sets:", parsed.sets?.length);
-            parsedBlocks = (parsed.sets||[]).map(s => JSON.stringify(s));
+            const sets = parsed.sets || [];
+            console.log("[analyze] JSON parsed, sets:", sets.length, sets.map((s,i) => `set${i}: dishes=${s.dishes?.length||0}`));
+            // バリデーション: dishesが空のセットを除外
+            parsedBlocks = sets
+              .filter(s => Array.isArray(s.dishes) && s.dishes.length > 0 && s.dishes.some(d => d.name))
+              .map(s => JSON.stringify(s));
           } else { throw new Error("No JSON object found"); }
         } catch(jsonErr) {
           console.warn("[analyze] JSON parse failed, falling back to text parse:", jsonErr.message);
@@ -2583,9 +2587,9 @@ function App() {
                       let setData;
                       try { setData = JSON.parse(recipeJson); } catch(e) { console.warn("[render] JSON parse error:", e); return null; }
                       const dishes = setData?.dishes ?? [];
-                      if (dishes.length === 0) { console.warn("[render] No dishes in set", idx); return null; }
+                      if (dishes.length === 0) return null;
                       const mainDish = dishes.find(d => d.role === "主菜") || dishes[0];
-                      const title = mainDish?.name || `献立${idx+1}`;
+                      const title = setData.set_name || mainDish?.name || dishes.map(d=>d.name).filter(Boolean).join("×") || `献立${idx+1}`;
                       if (appMode!=="meal_prep" && idx > 0 && !altOpen) return null;
                       return (
                         <div key={idx} style={{background:"#fffcf7",borderRadius:24,boxShadow:"0 2px 14px rgba(160,120,80,0.08)",border:"1.5px solid #f0e0c8",marginBottom:14,overflow:"hidden"}}>

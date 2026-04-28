@@ -2068,8 +2068,9 @@ function App() {
           if (parsedBlocks.length === 0) throw new Error("All recipes have empty dishes");
         } catch(jsonErr) {
           console.error("[analyze] JSON parse failed:", jsonErr.message, "Response start:", text.slice(0,200));
-          // フォールバック：テキストパース
-          parsedBlocks = text.split(/(?=【(?:献立セット)?[①②③]|^##\s)/m).filter(b => b.trim().length > 50);
+          // フォールバック：テキストパース（料理データを含むブロックのみ抽出）
+          parsedBlocks = text.split(/(?=【(?:献立セット)?[①②③])/m)
+            .filter(b => b.trim().length > 50 && /(?:主菜|副菜|汁物|📋|材料|作り方|👨‍🍳)/.test(b));
           if (parsedBlocks.length === 0) parsedBlocks = [text];
         }
       } else {

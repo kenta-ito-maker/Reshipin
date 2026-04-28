@@ -2607,11 +2607,11 @@ function App() {
                           <details>
                             <summary style={{padding:"18px 20px",cursor:"pointer",listStyle:"none",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                               <div style={{flex:1}}>
-                                <div style={{fontSize:16,fontWeight:700,color:"#5a4a3a",fontFamily:"'Kaisei Decol',serif",marginBottom:4}}>{title}</div>
-                                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                                  <span style={{fontSize:11,background:"#fdecd8",color:"#d67850",borderRadius:20,padding:"3px 12px",fontWeight:600}}>主菜+副菜+汁物</span>
-                                  {dishes.map((d,j) => <span key={j} style={{fontSize:10,color:"#8a7563"}}>{d.role}: {d.name}</span>)}
-                                </div>
+                                <div style={{fontSize:16,fontWeight:700,color:"#5a4a3a",fontFamily:"'Kaisei Decol',serif",marginBottom:2}}>{title}</div>
+                                {dishes.filter(d => d !== mainDish).length > 0 && (
+                                  <div style={{fontSize:12,color:"#8a7563",marginBottom:4}}>{dishes.filter(d => d !== mainDish).map(d => d.name).filter(Boolean).join(" / ")}</div>
+                                )}
+                                <span style={{fontSize:11,background:"#fdecd8",color:"#d67850",borderRadius:20,padding:"3px 12px",fontWeight:600}}>主菜+副菜+汁物</span>
                               </div>
                               <div style={{fontSize:20,color:"#d67850",marginLeft:12}}>▼</div>
                             </summary>

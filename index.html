@@ -397,48 +397,8 @@ ${getSeasonalInfo()}
 - 材料の分量表記ルール：野菜は個数/分数を優先し補足でg（例：玉ねぎ1/2個(約100g)、キャベツ葉2〜3枚）。調味料は小さじ/大さじ表記。肉はg＋目安（例：鶏もも肉200g）。主食(米/パスタ/麺)はgのまま。
 - 作り方の各ステップには：①切り方（薄切り/みじん切り等）②火加減（弱火/中火/強火）③時間目安（〇分）④見た目の目安（透き通るまで等）を含める。コツがあれば【ポイント】として短く補足。
 
-フォーマット（厳守、改行を必ず守る）：
-
-【献立セット①】
-⏱ 合計調理時間：XX分（並行調理した場合）
-🔥 合計カロリー：約XXXkcal（1人分）
-
-🥘 主菜：料理名
-📋 材料（${people}人分）
-・食材1 ... 分量
-・食材2 ... 分量
-・食材3 ... 分量
-👨‍🍳 作り方
-① 手順1
-② 手順2
-③ 手順3
-💬 この料理についての一言コメント
-
-🥗 副菜：料理名
-📋 材料（${people}人分）
-・食材1 ... 分量
-・食材2 ... 分量
-👨‍🍳 作り方
-① 手順1
-② 手順2
-💬 この料理についての一言コメント
-
-🍲 汁物：料理名
-📋 材料（${people}人分）
-・食材1 ... 分量
-・食材2 ... 分量
-👨‍🍳 作り方
-① 手順1
-② 手順2
-💬 この料理についての一言コメント
-
-【献立セット②】
-同じフォーマットで...
-
-【献立セット③】
-同じフォーマットで...
-
-🛒 今日の買い物リスト：[必要な食材、なければ「不要」]`;
+返答はJSON以外のテキストを一切含めないこと。以下の形式で3案提案：
+{"sets":[{"dishes":[{"name":"料理名","role":"主菜","ingredients":[{"name":"食材","amount":"分量"}],"steps":["手順1","手順2","手順3"],"comment":"一言コメント"},{"name":"料理名","role":"副菜","ingredients":[...],"steps":[...],"comment":"..."},{"name":"料理名","role":"汁物","ingredients":[...],"steps":[...],"comment":"..."}]},{"dishes":[...]},{"dishes":[...]}]}`;
 
 const PROMPT_KONDATE = PROMPT_KONDATE_SINGLE; // 後方互換
 
@@ -1137,6 +1097,53 @@ const ParsedRecipe = ({ content }) => {
               💬 {sec.comment}
             </div>
           )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// JSON dishes 形式のレシピをセクション分割表示するコンポーネント
+const DishSections = ({ dishes }) => {
+  if (!dishes || !Array.isArray(dishes) || dishes.length === 0) return null;
+  const roleIcons = {主菜:"🥘",副菜:"🥗",汁物:"🍲"};
+  return (
+    <div>
+      {dishes.map((dish, i) => (
+        <div key={i} style={{paddingBottom:i<dishes.length-1?16:0,marginBottom:i<dishes.length-1?16:0,borderBottom:i<dishes.length-1?"1.5px dashed #f0e0c8":"none"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+            <span style={{fontSize:15}}>{roleIcons[dish.role]||"🍴"}</span>
+            <div style={{fontSize:15,fontWeight:700,color:"#5a4a3a",fontFamily:"'Kaisei Decol',serif"}}>{dish.name}</div>
+            {dish.role && <span style={{fontSize:10,background:"#fdecd8",color:"#d67850",borderRadius:10,padding:"2px 8px",fontWeight:700}}>{dish.role}</span>}
+          </div>
+          {dish.ingredients && dish.ingredients.length > 0 && (
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#8a7563",marginBottom:6}}>📋 材料</div>
+              <div style={{background:"#fdf9f0",borderRadius:12,padding:"10px 14px"}}>
+                {dish.ingredients.map((ing,j) => (
+                  <div key={j} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"4px 0",fontSize:13,color:"#5a4a3a",borderBottom:j<dish.ingredients.length-1?"1px dashed #f0e0c8":"none"}}>
+                    <span>{ing.name||""}</span>
+                    <span style={{color:"#8a7563",fontSize:12,fontWeight:600}}>{ing.amount||ing.qty||""}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {dish.steps && dish.steps.length > 0 && (
+            <div style={{marginBottom:dish.comment?10:0}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#8a7563",marginBottom:6}}>👨‍🍳 作り方</div>
+              {dish.steps.map((step,j) => {
+                const txt = typeof step === "string" ? step : step.text || "";
+                return (
+                  <div key={j} style={{display:"flex",gap:8,marginBottom:6,fontSize:13,color:"#5a4a3a",lineHeight:1.7}}>
+                    <span style={{flexShrink:0,fontWeight:700,color:"#d67850"}}>{["①","②","③","④","⑤","⑥"][j]||"・"}</span>
+                    <span style={{flex:1}}>{txt.replace(/^[①②③④⑤⑥⑦⑧⑨⑩\d.)\s]+/,"")}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {dish.comment && <div style={{background:"#fff5ea",borderRadius:10,padding:"10px 14px",fontSize:12,color:"#8a6d3a",lineHeight:1.7,fontStyle:"italic"}}>💬 {dish.comment}</div>}
         </div>
       ))}
     </div>
@@ -1999,16 +2006,30 @@ function App() {
           ? promptFn(inventory, "※在庫にある食材だけで作れる献立を提案してください。買い物不要のものだけ。", people, familyNote, allExtras)
           : promptFn(inventory, shopText || "特売・値引き情報なし", people, familyNote, allExtras);
         const userText = vMode === "set"
-          ? (isFridgeOnly ? "在庫にある食材で作れる「主菜＋副菜＋汁物」の献立セットを3案提案してください。" : "在庫と特売情報から「主菜＋副菜＋汁物」の献立セットを3案提案してください。")
+          ? (isFridgeOnly ? "在庫にある食材で「主菜＋副菜＋汁物」の献立セットを3案、JSONのみで返答してください。" : "在庫と特売情報から「主菜＋副菜＋汁物」の献立セットを3案、JSONのみで返答してください。")
           : (isFridgeOnly ? "在庫にある食材だけで1品料理を3つ提案してください。" : "在庫と特売情報から1品料理を3つ提案してください。");
         content = !isFridgeOnly && shopImages.length > 0
           ? [...shopImages.map(img => ({type:"image",source:{type:"base64",media_type:"image/jpeg",data:img.b64}})),{type:"text",text:`チラシ写真${shopImages.length}枚。このチラシに載っている特売食材を積極的に使った献立を提案してください。補足：${shopText||"なし"}\n\n${userText}`}]
           : [{type:"text",text:userText}];
       }
-      const text = await callClaude(sysPrompt, [{role:"user",content}]);
+      const vMode2 = (appMode === "meal_prep" || appMode === "weekly_plan") ? null : (volumeType === "hearty" ? "set" : "single");
+      const maxTok = vMode2 === "set" ? 6000 : 2000;
+      const text = await callClaude(sysPrompt, [{role:"user",content}], maxTok);
       await new Promise(r => setTimeout(r, 1200));
       setResult(text);
-      const parsedBlocks = text.split(/(?=【(?:献立セット)?[①②③])/).filter(b => b.match(/【(?:献立セット)?[①②③]/));
+      let parsedBlocks;
+      // SET mode: JSON response → dishes配列
+      if (vMode2 === "set") {
+        try {
+          const jsonMatch = text.replace(/```json|```/g,"").trim().match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            parsedBlocks = (parsed.sets||[]).map(s => JSON.stringify(s));
+          } else { parsedBlocks = []; }
+        } catch { parsedBlocks = []; }
+      } else {
+        parsedBlocks = text.split(/(?=【(?:献立セット)?[①②③])/).filter(b => b.match(/【(?:献立セット)?[①②③]/));
+      }
       setRecipes(parsedBlocks);
       // 作り置きモード：食べる順＋リメイクを抽出
       let mpExtra = null;
@@ -2519,8 +2540,65 @@ function App() {
 
             {(() => {
               const shopping = result?.match(/🛒 (?:今日の買い物リスト|必要な食材リスト)：([\s\S]+?)$/)?.[1]?.trim();
-              const isSetMode = recipes.some(r => r.includes("【献立セット"));
+              // JSON set mode detection
+              const isJsonSet = recipes.length > 0 && recipes[0].startsWith("{");
 
+              if (isJsonSet) {
+                // JSON献立セット表示
+                return (
+                  <>
+                    {recipes.map((recipeJson, idx) => {
+                      let setData;
+                      try { setData = JSON.parse(recipeJson); } catch { return null; }
+                      if (!setData?.dishes) return null;
+                      const mainDish = setData.dishes.find(d => d.role === "主菜") || setData.dishes[0];
+                      const title = mainDish?.name || `献立${idx+1}`;
+                      if (appMode!=="meal_prep" && idx > 0 && !altOpen) return null;
+                      return (
+                        <div key={idx} style={{background:"#fffcf7",borderRadius:24,boxShadow:"0 2px 14px rgba(160,120,80,0.08)",border:"1.5px solid #f0e0c8",marginBottom:14,overflow:"hidden"}}>
+                          <details>
+                            <summary style={{padding:"18px 20px",cursor:"pointer",listStyle:"none",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                              <div style={{flex:1}}>
+                                <div style={{fontSize:16,fontWeight:700,color:"#5a4a3a",fontFamily:"'Kaisei Decol',serif",marginBottom:4}}>{title}</div>
+                                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                                  <span style={{fontSize:11,background:"#fdecd8",color:"#d67850",borderRadius:20,padding:"3px 12px",fontWeight:600}}>主菜+副菜+汁物</span>
+                                  {setData.dishes.map((d,j) => <span key={j} style={{fontSize:10,color:"#8a7563"}}>{d.role}: {d.name}</span>)}
+                                </div>
+                              </div>
+                              <div style={{fontSize:20,color:"#d67850",marginLeft:12}}>▼</div>
+                            </summary>
+                            <div style={{padding:"0 20px 20px",borderTop:"1.5px dashed #f0e0c8"}}>
+                              <DishSections dishes={setData.dishes}/>
+                              <div style={{display:"flex",gap:8,marginTop:14}}>
+                                <button onClick={() => handleCook(title, recipeJson)}
+                                  style={{flex:1,background:"#d67850",color:"#fff",border:"none",borderRadius:14,padding:"13px 0",fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>
+                                  🍳 これを作った！
+                                </button>
+                                <button onClick={() => { setShareTargetTitle(title); setShareTargetContent(recipeJson); setSharePhoto(null); setShareMenu(true); }}
+                                  style={{background:"#e8f4fd",color:"#3a7ab5",border:"1px solid #d0e4f0",borderRadius:14,padding:"13px 12px",fontSize:12,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>
+                                  📢 シェア
+                                </button>
+                              </div>
+                            </div>
+                          </details>
+                        </div>
+                      );
+                    })}
+                    {recipes.length > 1 && !isJsonSet && (
+                      <button style={S.altToggleBtn} className="alt-toggle" onClick={() => setAltOpen(!altOpen)}>
+                        {altOpen ? <span>▲ 別案を閉じる</span> : <span>▼ 別案も見てみる（あと{recipes.length-1}案）</span>}
+                      </button>
+                    )}
+                    {recipes.length > 1 && isJsonSet && (
+                      <button style={S.altToggleBtn} className="alt-toggle" onClick={() => setAltOpen(!altOpen)}>
+                        {altOpen ? <span>▲ 別案を閉じる</span> : <span>▼ 別案も見てみる（あと{recipes.length-1}案）</span>}
+                      </button>
+                    )}
+                  </>
+                );
+              }
+
+              const isSetMode = recipes.some(r => r.includes("【献立セット"));
               return (
                 <>
                   {recipes.map((recipe, idx) => {
@@ -2529,8 +2607,8 @@ function App() {
                       const setNumMatch = recipe.match(/【(献立セット[①②③])】/);
                       const shusaiMatch = recipe.match(/🥘\s*主菜\s*[:：]\s*(.+)/);
                       title = shusaiMatch
-                        ? `${setNumMatch?.[1] || "献立セット"} ${shusaiMatch[1].trim()}`
-                        : setNumMatch?.[1] || `献立セット${idx+1}`;
+                        ? `${shusaiMatch[1].trim()}`
+                        : `献立${idx+1}`;
                       badge = "主菜+副菜+汁物";
                       const timeMatch = recipe.match(/⏱ 合計調理時間:(.+)/);
                       time = timeMatch ? timeMatch[1].trim() : "";

@@ -2032,24 +2032,16 @@ function App() {
         content = [{type:"text",text:userText}];
       } else {
         const isFridgeOnly = mode === "fridge";
-        const useJson = volumeType === "hearty" || volumeType === "standard"; // 2品以上はJSON
-        if (useJson) {
-          sysPrompt = PROMPT_KONDATE_SET(inventory, isFridgeOnly ? "※在庫だけで。" : (shopText || "特売・値引き情報なし"), people, familyNote, allExtras);
-          const dishCount = volumeType === "hearty" ? "主菜+副菜+汁物の3品" : "主菜+副菜の2品";
-          const userText = `{\"recipes\":[...]}の形式で3セット出力。各セットは${dishCount}構成。最初の文字は{、最後は}。Markdown禁止。`;
-          content = !isFridgeOnly && shopImages.length > 0
-            ? [...shopImages.map(img => ({type:"image",source:{type:"base64",media_type:"image/jpeg",data:img.b64}})),{type:"text",text:`チラシ写真。補足：${shopText||"なし"}\n\n${userText}`}]
-            : [{type:"text",text:userText}];
-        } else {
-          sysPrompt = PROMPT_KONDATE_SINGLE(inventory, isFridgeOnly ? "※在庫だけで。" : (shopText || "特売・値引き情報なし"), people, familyNote, allExtras);
-          const userText = isFridgeOnly ? "在庫にある食材だけで1品料理を3つ提案してください。" : "在庫と特売情報から1品料理を3つ提案してください。";
-          content = !isFridgeOnly && shopImages.length > 0
-            ? [...shopImages.map(img => ({type:"image",source:{type:"base64",media_type:"image/jpeg",data:img.b64}})),{type:"text",text:`チラシ写真。補足：${shopText||"なし"}\n\n${userText}`}]
-            : [{type:"text",text:userText}];
-        }
+        // 全ボリュームでJSON SET形式を使う
+        sysPrompt = PROMPT_KONDATE_SET(inventory, isFridgeOnly ? "※在庫だけで。" : (shopText || "特売・値引き情報なし"), people, familyNote, allExtras);
+        const dishDesc = volumeType === "hearty" ? "主菜+副菜+汁物の3品" : volumeType === "standard" ? "主菜+副菜の2品" : "主菜1品のみ（dishes配列1件）";
+        const userText = `{"recipes":[...]}の形式で3セット出力。各セットは${dishDesc}構成。最初の文字は{、最後は}。Markdown禁止。`;
+        content = !isFridgeOnly && shopImages.length > 0
+          ? [...shopImages.map(img => ({type:"image",source:{type:"base64",media_type:"image/jpeg",data:img.b64}})),{type:"text",text:`チラシ写真。補足：${shopText||"なし"}\n\n${userText}`}]
+          : [{type:"text",text:userText}];
       }
-      const vMode2 = (appMode === "meal_prep" || appMode === "weekly_plan") ? null : (volumeType !== "simple" ? "set" : "single");
-      const maxTok = vMode2 === "set" ? 6000 : 2000;
+      const vMode2 = (appMode === "meal_prep" || appMode === "weekly_plan") ? null : "set";
+      const maxTok = volumeType === "simple" ? 4000 : 6000;
       const text = await callClaude(sysPrompt, [{role:"user",content}], maxTok);
       await new Promise(r => setTimeout(r, 1200));
       console.log("[analyze] AI response (first 500):", text.slice(0,500));
@@ -2470,17 +2462,16 @@ function App() {
               <div style={{marginBottom:14}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#b89f87",marginBottom:6,letterSpacing:"0.1em"}}>ボリューム</div>
                 <div style={{display:"flex",gap:8}}>
-                  {[{key:"simple",icon:"🍴",label:"1品",disabled:true},{key:"standard",icon:"🍴🥗",label:"2品",disabled:true},{key:"hearty",icon:"🍴🥗🍲",label:"3品",disabled:false}].map(v => {
+                  {[{key:"simple",icon:"🍴",label:"1品"},{key:"standard",icon:"🍴🥗",label:"2品"},{key:"hearty",icon:"🍴🥗🍲",label:"3品"}].map(v => {
                     const sel = volumeType===v.key;
                     return (
-                      <button key={v.key} onClick={() => !v.disabled && setVolumeType(v.key)} disabled={v.disabled}
-                        style={{flex:1,background:sel?"#d67850":v.disabled?"#f0ebe3":"#fdecd8",border:`1.5px solid ${sel?"#d67850":"#f0d8b8"}`,borderRadius:14,padding:"10px 4px",fontSize:13,fontWeight:700,color:sel?"#fff":v.disabled?"#c0ac98":"#8a7563",cursor:v.disabled?"not-allowed":"pointer",fontFamily:"inherit",transition:"all 0.15s",opacity:v.disabled?0.6:1}}>
+                      <button key={v.key} onClick={() => setVolumeType(v.key)}
+                        style={{flex:1,background:sel?"#d67850":"#fdecd8",border:`1.5px solid ${sel?"#d67850":"#f0d8b8"}`,borderRadius:14,padding:"10px 4px",fontSize:13,fontWeight:700,color:sel?"#fff":"#8a7563",cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
                         {v.icon} {v.label}
                       </button>
                     );
                   })}
                 </div>
-                <div style={{fontSize:10,color:"#c0ac98",marginTop:4}}>※ 現在「3品（主菜+副菜+汁物）」のみご利用いただけます。他の構成は近日対応予定</div>
               </div>
             )}
             {appMode==="daily" && (() => {

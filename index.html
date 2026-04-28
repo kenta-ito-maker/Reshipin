@@ -1374,6 +1374,121 @@ const ShoppingList = ({ wpResult, inventory, onToast }) => {
   );
 };
 
+const RECOMMEND_CATEGORIES = [
+  {key:"seasonal",emoji:"🌸",label:"季節・旬",color:"#f0e8f0"},
+  {key:"store",emoji:"🍴",label:"お店再現",color:"#e8f0e8"},
+  {key:"ai",emoji:"🤖",label:"AIアイデア",color:"#e8ecf4"},
+  {key:"random",emoji:"✨",label:"おすすめ",color:"#f4f0e4"},
+];
+
+const DailyRecommendations = ({ onToast }) => {
+  const today = new Date().toISOString().split("T")[0];
+  const cacheKey = `repi_recommend_${today}`;
+  const [cards, setCards] = React.useState(() => { try { const d = localStorage.getItem(cacheKey); return d ? JSON.parse(d) : null; } catch { return null; } });
+  const [loading, setLoading] = React.useState(false);
+  const [openIdx, setOpenIdx] = React.useState(null);
+
+  const generate = async () => {
+    setLoading(true);
+    try {
+      const season = getSeasonalInfo();
+      const prompt = `あなたは料理提案AIです。「今日のひらめき」として4つの料理カードを提案してください。
+
+${season}
+
+【4枚の構成】
+1. 季節・旬: 今月の旬食材を主役にした料理
+2. お店再現: 有名チェーン店の人気メニューを家庭で再現する料理（「○○風」表記、商標は料理名に直接含めない）
+3. AIアイデア: 意外な食材の組み合わせや創作料理
+4. おすすめ: 上記3カテゴリのいずれかからもう1品
+
+【各カードに必要な情報】
+- category: "seasonal" / "store" / "ai" / "random"
+- name: 料理名（15文字以内）
+- catchphrase: キャッチコピー（20文字以内、魅力が伝わる一言）
+- ingredients: 主要材料3〜5品（[{"name":"食材","amount":"分量"}]）
+- steps: 作り方2〜3ステップ（短く）
+- time: 調理時間（例："20分"）
+
+返答はJSON以外のテキストを一切含めないこと。
+{"cards":[{...},{...},{...},{...}]}`;
+      const raw = await callClaude(prompt, [{role:"user",content:[{type:"text",text:"JSONのみで返答してください。"}]}], 4000);
+      const jsonMatch = raw.replace(/```json|```/g,"").trim().match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("JSON not found");
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (!parsed.cards || parsed.cards.length < 4) throw new Error("cards not found");
+      setCards(parsed.cards);
+      localStorage.setItem(cacheKey, JSON.stringify(parsed.cards));
+    } catch(e) { console.error("recommend error:", e); if(onToast) onToast("ひらめき生成に失敗しました"); }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{marginTop:28,marginBottom:20}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+        <div style={{fontSize:16,fontWeight:700,color:"#5a4a3a",fontFamily:"'Kaisei Decol',serif"}}>✨ 今日のひらめき</div>
+        <button onClick={() => { localStorage.removeItem(cacheKey); setCards(null); generate(); }}
+          style={{background:"none",border:"1px solid #e8d8c0",borderRadius:10,width:32,height:32,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+          🔄
+        </button>
+      </div>
+      {!cards && !loading && (
+        <button onClick={generate}
+          style={{width:"100%",background:"linear-gradient(135deg,#fff8f0,#fdecd8)",border:"1.5px solid #e8c8a0",borderRadius:20,padding:"20px",cursor:"pointer",fontFamily:"inherit"}}>
+          <span style={{color:"#d67850",fontSize:14,fontWeight:700}}>✨ ひらめきレシピを見る</span>
+        </button>
+      )}
+      {loading && <div style={{textAlign:"center",padding:20,color:"#d67850"}}><span className="egg-wobble" style={{fontSize:20}}>🥚</span><span style={{marginLeft:8,fontSize:13}}>ひらめき中…</span></div>}
+      {cards && (
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {cards.map((card, idx) => {
+            const cat = RECOMMEND_CATEGORIES.find(c => c.key === card.category) || RECOMMEND_CATEGORIES[3];
+            const isOpen = openIdx === idx;
+            return (
+              <div key={idx} style={{background:cat.color,borderRadius:20,border:"1.5px solid #f0e0c8",overflow:"hidden",transition:"all 0.2s"}}>
+                <div onClick={() => setOpenIdx(isOpen ? null : idx)} style={{padding:"16px 18px",cursor:"pointer"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                    <span style={{fontSize:14}}>{cat.emoji}</span>
+                    <span style={{fontSize:11,fontWeight:700,color:"#8a7563"}}>{cat.label}</span>
+                    {card.time && <span style={{fontSize:10,color:"#b89f87",marginLeft:"auto"}}>⏱ {card.time}</span>}
+                  </div>
+                  <div style={{fontSize:16,fontWeight:700,color:"#5a4a3a",fontFamily:"'Kaisei Decol',serif",marginBottom:4}}>{card.name}</div>
+                  <div style={{fontSize:12,color:"#8a6d3a",fontStyle:"italic"}}>{card.catchphrase}</div>
+                  {!isOpen && <div style={{fontSize:11,color:"#d67850",marginTop:8,fontWeight:600}}>タップで詳細 →</div>}
+                </div>
+                {isOpen && (
+                  <div style={{padding:"0 18px 16px",borderTop:"1px dashed #e8d8c0"}}>
+                    {card.ingredients && (
+                      <div style={{marginTop:12,marginBottom:10}}>
+                        <div style={{fontSize:11,fontWeight:700,color:"#8a7563",marginBottom:6}}>📋 材料</div>
+                        <div style={{background:"rgba(255,255,255,0.6)",borderRadius:10,padding:"8px 12px"}}>
+                          {card.ingredients.map((ing,j) => (
+                            <div key={j} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",fontSize:12,color:"#5a4a3a"}}>
+                              <span>{ing.name}</span><span style={{color:"#8a7563"}}>{ing.amount||""}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {card.steps && (
+                      <div>
+                        <div style={{fontSize:11,fontWeight:700,color:"#8a7563",marginBottom:6}}>👨‍🍳 作り方</div>
+                        {card.steps.map((s,j) => (
+                          <div key={j} style={{fontSize:12,color:"#5a4a3a",padding:"3px 0",lineHeight:1.6}}>{["①","②","③"][j]||"・"} {s}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 function App() {
   const load = (key, fb) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fb; } catch { return fb; } };
   const [inventory, setInvRaw] = useState([]);
@@ -2378,6 +2493,8 @@ function App() {
               </div>
             </div>}
             {appMode!=="weekly_plan" && resultLoading && <div style={S.loadingRow}><span className="egg-wobble" style={{fontSize:18}}>🥚</span><span style={{color:"#d67850",fontSize:13}}>今日の献立を考え中…</span></div>}
+
+            <DailyRecommendations onToast={reason => { setPointToast({amount:0,reason}); setTimeout(()=>setPointToast(null),3000); }}/>
           </div>
         )}
 

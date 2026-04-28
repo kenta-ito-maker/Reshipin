@@ -397,8 +397,14 @@ ${getSeasonalInfo()}
 - 材料の分量表記ルール：野菜は個数/分数を優先し補足でg（例：玉ねぎ1/2個(約100g)、キャベツ葉2〜3枚）。調味料は小さじ/大さじ表記。肉はg＋目安（例：鶏もも肉200g）。主食(米/パスタ/麺)はgのまま。
 - 作り方の各ステップには：①切り方（薄切り/みじん切り等）②火加減（弱火/中火/強火）③時間目安（〇分）④見た目の目安（透き通るまで等）を含める。コツがあれば【ポイント】として短く補足。
 
-返答はJSON以外のテキストを一切含めないこと。以下の形式で3案提案：
-{"sets":[{"dishes":[{"name":"料理名","role":"主菜","ingredients":[{"name":"食材","amount":"分量"}],"steps":["手順1","手順2","手順3"],"comment":"一言コメント"},{"name":"料理名","role":"副菜","ingredients":[...],"steps":[...],"comment":"..."},{"name":"料理名","role":"汁物","ingredients":[...],"steps":[...],"comment":"..."}]},{"dishes":[...]},{"dishes":[...]}]}`;
+【出力形式（厳守）】
+返答はJSON以外のテキストを一切含めないこと。説明文、Markdown、見出し等の非JSONテキストは全て禁止。
+以下の形式のJSON1個だけを返す：
+
+{"sets":[{"dishes":[{"name":"料理名","role":"主菜","ingredients":[{"name":"食材","amount":"分量"}],"steps":["手順1","手順2"],"comment":"一言"},{"name":"料理名","role":"副菜","ingredients":[{"name":"食材","amount":"分量"}],"steps":["手順1"],"comment":"一言"},{"name":"料理名","role":"汁物","ingredients":[{"name":"食材","amount":"分量"}],"steps":["手順1"],"comment":"一言"}]},{"dishes":[...]},{"dishes":[...]}]}
+
+※ sets配列に3つのセットを入れる。各セットのdishes配列に主菜・副菜・汁物の3品。
+※ ingredientsは各dishごとに独立（混ぜない）。stepsも各dishごとに独立。`;
 
 const PROMPT_KONDATE = PROMPT_KONDATE_SINGLE; // 後方互換
 
@@ -2024,7 +2030,7 @@ function App() {
           ? promptFn(inventory, "※在庫にある食材だけで作れる献立を提案してください。買い物不要のものだけ。", people, familyNote, allExtras)
           : promptFn(inventory, shopText || "特売・値引き情報なし", people, familyNote, allExtras);
         const userText = vMode === "set"
-          ? (isFridgeOnly ? "在庫にある食材で「主菜＋副菜＋汁物」の献立セットを3案、JSONのみで返答してください。" : "在庫と特売情報から「主菜＋副菜＋汁物」の献立セットを3案、JSONのみで返答してください。")
+          ? "JSONのみで返答してください。Markdownや見出しは禁止。{\"sets\":[...]}の形式で3セット提案。"
           : (isFridgeOnly ? "在庫にある食材だけで1品料理を3つ提案してください。" : "在庫と特売情報から1品料理を3つ提案してください。");
         content = !isFridgeOnly && shopImages.length > 0
           ? [...shopImages.map(img => ({type:"image",source:{type:"base64",media_type:"image/jpeg",data:img.b64}})),{type:"text",text:`チラシ写真${shopImages.length}枚。このチラシに載っている特売食材を積極的に使った献立を提案してください。補足：${shopText||"なし"}\n\n${userText}`}]
@@ -2034,18 +2040,25 @@ function App() {
       const maxTok = vMode2 === "set" ? 6000 : 2000;
       const text = await callClaude(sysPrompt, [{role:"user",content}], maxTok);
       await new Promise(r => setTimeout(r, 1200));
-      console.log("[analyze] AI response:", text.slice(0,300));
+      console.log("[analyze] AI response (first 500):", text.slice(0,500));
       setResult(text);
       let parsedBlocks;
-      // SET mode: JSON response → dishes配列
       if (vMode2 === "set") {
+        // SET mode: JSON優先、失敗したらMarkdownテキストをフォールバック
         try {
-          const jsonMatch = text.replace(/```json|```/g,"").trim().match(/\{[\s\S]*\}/);
+          const cleaned = text.replace(/```json\s*/gi,"").replace(/```\s*/g,"").trim();
+          const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
+            console.log("[analyze] JSON parsed successfully, sets:", parsed.sets?.length);
             parsedBlocks = (parsed.sets||[]).map(s => JSON.stringify(s));
-          } else { parsedBlocks = []; }
-        } catch { parsedBlocks = []; }
+          } else { throw new Error("No JSON object found"); }
+        } catch(jsonErr) {
+          console.warn("[analyze] JSON parse failed, falling back to text parse:", jsonErr.message);
+          // フォールバック：Markdown/テキスト形式をブロック分割
+          parsedBlocks = text.split(/(?=【(?:献立セット)?[①②③]|^##\s*【|^#{1,3}\s*🥘)/m).filter(b => b.trim().length > 50);
+          if (parsedBlocks.length === 0) parsedBlocks = [text]; // 分割できなければ全文を1ブロック
+        }
       } else {
         parsedBlocks = text.split(/(?=【(?:献立セット)?[①②③])/).filter(b => b.match(/【(?:献立セット)?[①②③]/));
       }
@@ -2568,9 +2581,10 @@ function App() {
                   <>
                     {recipes.map((recipeJson, idx) => {
                       let setData;
-                      try { setData = JSON.parse(recipeJson); } catch { return null; }
-                      if (!setData?.dishes) return null;
-                      const mainDish = setData.dishes.find(d => d.role === "主菜") || setData.dishes[0];
+                      try { setData = JSON.parse(recipeJson); } catch(e) { console.warn("[render] JSON parse error:", e); return null; }
+                      const dishes = setData?.dishes ?? [];
+                      if (dishes.length === 0) { console.warn("[render] No dishes in set", idx); return null; }
+                      const mainDish = dishes.find(d => d.role === "主菜") || dishes[0];
                       const title = mainDish?.name || `献立${idx+1}`;
                       if (appMode!=="meal_prep" && idx > 0 && !altOpen) return null;
                       return (
@@ -2581,13 +2595,13 @@ function App() {
                                 <div style={{fontSize:16,fontWeight:700,color:"#5a4a3a",fontFamily:"'Kaisei Decol',serif",marginBottom:4}}>{title}</div>
                                 <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                                   <span style={{fontSize:11,background:"#fdecd8",color:"#d67850",borderRadius:20,padding:"3px 12px",fontWeight:600}}>主菜+副菜+汁物</span>
-                                  {setData.dishes.map((d,j) => <span key={j} style={{fontSize:10,color:"#8a7563"}}>{d.role}: {d.name}</span>)}
+                                  {dishes.map((d,j) => <span key={j} style={{fontSize:10,color:"#8a7563"}}>{d.role}: {d.name}</span>)}
                                 </div>
                               </div>
                               <div style={{fontSize:20,color:"#d67850",marginLeft:12}}>▼</div>
                             </summary>
                             <div style={{padding:"0 20px 20px",borderTop:"1.5px dashed #f0e0c8"}}>
-                              <DishSections dishes={setData.dishes}/>
+                              <DishSections dishes={dishes}/>
                               <div style={{display:"flex",gap:8,marginTop:14}}>
                                 <button onClick={() => handleCook(title, recipeJson)}
                                   style={{flex:1,background:"#d67850",color:"#fff",border:"none",borderRadius:14,padding:"13px 0",fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}}>
